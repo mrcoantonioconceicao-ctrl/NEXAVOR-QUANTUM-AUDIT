@@ -2,8 +2,20 @@ import express from 'express';
 import path from 'path';
 import dotenv from 'dotenv';
 import { handleAnalyzeRepo, handleFetchGitHub, handleGetSystemMetrics } from './server/routes.js';
+import {
+  handleGetWebhookConfigs,
+  handleSaveWebhookConfig,
+  handleDeleteWebhookConfig,
+  handleGetWebhookDeliveries,
+  handleIncomingGitHubWebhook,
+  handleSimulateWebhook,
+  handleWebhookStream,
+} from './server/webhooks.js';
+
+import { handleBadgeSvg } from './server/badgeGenerator.js';
 
 dotenv.config();
+
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -27,6 +39,20 @@ app.get('/api/metrics', handleGetSystemMetrics);
 // Real API Routes
 app.post('/api/audit/analyze', handleAnalyzeRepo);
 app.get('/api/github/repo', handleFetchGitHub);
+
+// Webhook Configuration & Real-time Integration Routes
+app.get('/api/webhooks/configs', handleGetWebhookConfigs);
+app.post('/api/webhooks/config', handleSaveWebhookConfig);
+app.delete('/api/webhooks/config/:id', handleDeleteWebhookConfig);
+app.get('/api/webhooks/deliveries', handleGetWebhookDeliveries);
+app.post('/api/webhooks/github', handleIncomingGitHubWebhook);
+app.post('/api/webhooks/simulate', handleSimulateWebhook);
+app.get('/api/webhooks/stream', handleWebhookStream);
+
+// Dynamic SVG Badge Generation Route
+app.get('/api/badge/shield.svg', handleBadgeSvg);
+app.get('/api/badge/svg', handleBadgeSvg);
+
 
 // Serve static assets in production
 const distPath = path.resolve(process.cwd(), 'dist');

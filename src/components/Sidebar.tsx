@@ -16,6 +16,7 @@ import {
   ShieldAlert,
   X,
   Radio,
+  Webhook,
 } from 'lucide-react';
 import { SecurityAuditReport } from '../domain/types.ts';
 
@@ -27,7 +28,9 @@ export type TabType =
   | 'bpmn'
   | 'review'
   | 'tests'
-  | 'architecture';
+  | 'architecture'
+  | 'webhooks';
+
 
 interface SidebarProps {
   activeTab: TabType;
@@ -123,7 +126,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
       description: 'Modelagem de Domínio & SOA',
       icon: Layers,
     },
+    {
+      id: 'webhooks' as TabType,
+      label: 'Webhooks & CI/CD',
+      description: 'Gatilhos Automáticos GitHub',
+      icon: Webhook,
+      badge: 'Realtime',
+      badgeColor: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+    },
   ];
+
 
   const handleSelectTab = (tab: TabType) => {
     onTabChange(tab);

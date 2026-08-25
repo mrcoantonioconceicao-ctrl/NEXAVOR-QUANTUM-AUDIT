@@ -21,7 +21,9 @@ const TAB_TITLES: Record<TabType, { title: string; subtitle: string }> = {
   review: { title: 'Code Review Workbench', subtitle: 'Remediação e Diff Estático' },
   tests: { title: 'Testes de Segurança', subtitle: 'Suíte Miri e Validação Dinâmica' },
   architecture: { title: 'Arquitetura & DDD', subtitle: 'Bounded Contexts e SOA' },
+  webhooks: { title: 'Webhooks & CI/CD', subtitle: 'Gatilhos Automáticos e Auditoria em Tempo Real' },
 };
+
 
 export const TopBar: React.FC<TopBarProps> = ({
   activeTab,

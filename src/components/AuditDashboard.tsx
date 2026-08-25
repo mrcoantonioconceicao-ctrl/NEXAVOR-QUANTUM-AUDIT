@@ -19,10 +19,12 @@ import {
   TrendingUp,
   Sparkles,
   Lightbulb,
+  Shield,
 } from 'lucide-react';
 import { SecurityAuditReport, VulnerabilitySeverity, SourceFile } from '../domain/types.ts';
 import { TabType } from './Sidebar.tsx';
 import { getAuditHistory, compareAuditReports, generateSyntheticBaselineSession } from '../services/auditHistoryService.ts';
+import { SecurityBadgeModal } from './SecurityBadgeModal.tsx';
 
 interface AuditDashboardProps {
   report: SecurityAuditReport;
@@ -35,6 +37,7 @@ export const AuditDashboard: React.FC<AuditDashboardProps> = ({
   onNavigateToTab,
   onSelectVulnerabilityForReview,
 }) => {
+  const [isBadgeModalOpen, setIsBadgeModalOpen] = useState(false);
   const [selectedFileForInspection, setSelectedFileForInspection] = useState<SourceFile>(
     report.filesAudited[0] || { path: 'src/lib.rs', size: 0, content: '' }
   );
@@ -114,6 +117,14 @@ export const AuditDashboard: React.FC<AuditDashboardProps> = ({
         </div>
 
         <div className="flex items-center gap-3 shrink-0">
+          <button
+            onClick={() => setIsBadgeModalOpen(true)}
+            className="px-3 py-1.5 rounded border border-emerald-500/40 bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 font-mono text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs"
+            title="Gerar e copiar badge de segurança Markdown para o README"
+          >
+            <Shield className="h-4 w-4 text-emerald-400" />
+            <span>Badge README</span>
+          </button>
           <div className="text-right">
             <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-mono font-bold">Classificação C-Level</div>
             <div className="text-xs font-semibold font-mono text-emerald-400">
@@ -523,6 +534,13 @@ export const AuditDashboard: React.FC<AuditDashboardProps> = ({
           ))}
         </div>
       </div>
+
+      {/* Security Badge README Generator Modal */}
+      <SecurityBadgeModal
+        isOpen={isBadgeModalOpen}
+        onClose={() => setIsBadgeModalOpen(false)}
+        report={report}
+      />
     </div>
   );
 };

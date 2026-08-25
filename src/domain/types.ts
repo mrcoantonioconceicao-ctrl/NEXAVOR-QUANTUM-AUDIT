@@ -180,3 +180,40 @@ export interface SecurityAuditReport {
   }>;
   securityTests: SecurityTestCase[];
 }
+
+export type WebhookEvent = 'push' | 'pull_request' | 'workflow_run' | 'release' | 'ping';
+
+export interface WebhookConfig {
+  id: string;
+  repoUrl: string;
+  webhookUrl: string;
+  secret: string;
+  events: WebhookEvent[];
+  autoAuditOnPush: boolean;
+  active: boolean;
+  createdAt: string;
+  lastTriggeredAt?: string;
+  totalDeliveries: number;
+}
+
+export interface WebhookDeliveryLog {
+  id: string;
+  timestamp: string;
+  event: WebhookEvent;
+  repoUrl: string;
+  branch: string;
+  commitSha?: string;
+  commitMessage?: string;
+  author?: string;
+  status: 200 | 202 | 400 | 500;
+  auditTriggered: boolean;
+  vulnSummary?: {
+    critical: number;
+    high: number;
+    medium: number;
+    score: number;
+  };
+  durationMs: number;
+  reportId?: string;
+  report?: SecurityAuditReport;
+}

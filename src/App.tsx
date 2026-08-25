@@ -10,7 +10,9 @@ import { SecurityTestSuite } from './components/SecurityTestSuite.tsx';
 import { ArchitectureDocsModal } from './components/ArchitectureDocsModal.tsx';
 import { ScaleClusterDashboard } from './components/ScaleClusterDashboard.tsx';
 import { AuditDiffComparator } from './components/AuditDiffComparator.tsx';
+import { WebhookConfigView } from './components/WebhookConfigView.tsx';
 import { SecurityAuditReport, BpmnStep } from './domain/types.ts';
+
 import { INITIAL_BPMN_STEPS, advanceBpmnStep } from './domain/bpmnWorkflow.ts';
 import { BENCHMARK_CASES } from './domain/benchmarks.ts';
 import { fetchGitHubRepository } from './services/githubService.ts';
@@ -275,7 +277,18 @@ export default function App() {
               )}
 
               {activeTab === 'architecture' && <ArchitectureDocsModal />}
+
+              {activeTab === 'webhooks' && (
+                <WebhookConfigView
+                  currentRepoUrl={report?.targetRepo?.url}
+                  onTriggerAuditFromWebhook={(url) => {
+                    handleStartAuditWithUrl(url, undefined, 'FULL_REPO');
+                  }}
+                  showNotification={showNotification}
+                />
+              )}
             </div>
+
           ) : (
             <div className="max-w-7xl mx-auto p-12 text-center text-zinc-500 font-mono text-xs uppercase tracking-wider">
               Carregando suíte de auditoria...
