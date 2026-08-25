@@ -33,7 +33,7 @@ interface WebhookConfigViewProps {
 }
 
 export const WebhookConfigView: React.FC<WebhookConfigViewProps> = ({
-  currentRepoUrl = 'https://github.com/mrcoantonioconceicao-ctrl/Atolada-anchor',
+  currentRepoUrl = 'https://github.com/user/repository',
   onTriggerAuditFromWebhook,
   showNotification,
 }) => {

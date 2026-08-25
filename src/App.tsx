@@ -19,7 +19,7 @@ import { fetchGitHubRepository } from './services/githubService.ts';
 import { runFullSecurityAudit } from './services/auditService.ts';
 import { exportExecutivePdf } from './services/pdfExporter.ts';
 import { downloadSarifFile } from './services/sarifExporter.ts';
-import { saveAuditSession } from './services/auditHistoryService.ts';
+import { saveAuditSession, getAuditHistory } from './services/auditHistoryService.ts';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
@@ -32,21 +32,15 @@ export default function App() {
   const [notification, setNotification] = useState<string | null>(null);
   const [auditErrorMessage, setAuditErrorMessage] = useState<string | null>(null);
 
-  // Initialize with initial benchmark audit on mount so user sees rich results immediately
+  // Load existing session history on mount if user ran audits previously
   useEffect(() => {
-    const initDemo = async () => {
-      const defaultCase = BENCHMARK_CASES[0];
-      const initialReport = await runFullSecurityAudit(
-        defaultCase.repo,
-        defaultCase.files
-      );
-      saveAuditSession(initialReport);
-      setReport(initialReport);
+    const history = getAuditHistory();
+    if (history.length > 0 && history[0].report) {
+      setReport(history[0].report);
       setBpmnSteps((prev) =>
         prev.map((s) => ({ ...s, status: 'COMPLETED', progressPercent: 100 }))
       );
-    };
-    initDemo();
+    }
   }, []);
 
   const showNotification = (msg: string) => {
@@ -290,8 +284,16 @@ export default function App() {
             </div>
 
           ) : (
-            <div className="max-w-7xl mx-auto p-12 text-center text-zinc-500 font-mono text-xs uppercase tracking-wider">
-              Carregando suíte de auditoria...
+            <div className="max-w-4xl mx-auto p-12 text-center space-y-4">
+              <div className="inline-flex p-3 rounded-full bg-zinc-900 border border-zinc-800 text-emerald-400">
+                <span className="h-4 w-4 rounded-full bg-emerald-500 animate-pulse" />
+              </div>
+              <h3 className="text-lg font-mono font-bold text-white uppercase tracking-wider">
+                Pronto para Auditoria Pericial Real
+              </h3>
+              <p className="text-xs text-zinc-400 font-sans max-w-lg mx-auto leading-relaxed">
+                Insira a URL de um repositório do GitHub (público ou privado) ou cole o código fonte no Editor Manual acima para iniciar a varredura pericial ao vivo via inteligência artificial (Gemini API).
+              </p>
             </div>
           )}
         </main>

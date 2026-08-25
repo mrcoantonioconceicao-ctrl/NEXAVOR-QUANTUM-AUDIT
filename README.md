@@ -1,6 +1,6 @@
 # 🛡️ RustShield Quantum - Suíte Pericial de Auditoria de Segurança & PQC
 
-[![Q-Audit Security Status](https://img.shields.io/badge/Q--Audit-96%2F100%20PASSED%20%E2%80%8B%20PQC%20READY-00C853?style=for-the-badge&logo=shield&logoColor=white)](https://github.com/mrcoantonioconceicao-ctrl/Atolada-anchor)
+[![Q-Audit Security Status](https://img.shields.io/badge/Q--Audit-96%2F100%20PASSED%20%E2%80%8B%20PQC%20READY-00C853?style=for-the-badge&logo=shield&logoColor=white)](https://github.com/user/repository)
 [![NIST PQC Standards](https://img.shields.io/badge/NIST-FIPS%20203%20%7C%20FIPS%20204-00E676?style=for-the-badge&logo=lock)](https://csrc.nist.gov/projects/post-quantum-cryptography)
 [![CI/CD Pipeline](https://img.shields.io/badge/CI%2FCD-GitHub%20Webhooks%20Realtime-0284C7?style=for-the-badge&logo=githubactions)](https://github.com)
 [![TypeScript](https://img.shields.io/badge/React%2018-Vite%20%7C%20Tailwind-3178C6?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)

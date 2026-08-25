@@ -12,65 +12,6 @@ export interface BenchmarkCase {
 
 export const BENCHMARK_CASES: BenchmarkCase[] = [
   {
-    id: 'atolada-anchor-rust',
-    name: 'Atolada-anchor (Solana/Rust & TS)',
-    category: 'ZERO_DAY_SOLITON',
-    language: 'Rust / TS',
-    description: 'Smart contracts Solana Anchor & Engine de Auditoria de Arquitetura de Software em Rust/TypeScript.',
-    repo: {
-      owner: 'mrcoantonioconceicao-ctrl',
-      name: 'Atolada-anchor',
-      fullName: 'mrcoantonioconceicao-ctrl/Atolada-anchor',
-      description: 'Smartcontract & Solana Anchor Architecture Core',
-      stars: 1,
-      forks: 0,
-      openIssues: 0,
-      defaultBranch: 'main',
-      language: 'Rust / TS',
-      url: 'https://github.com/mrcoantonioconceicao-ctrl/Atolada-anchor',
-      fileCount: 25,
-      totalTreeFiles: 68,
-    },
-    files: [
-      {
-        path: 'crates/solana-architect-core/Cargo.toml',
-        size: 320,
-        language: 'Rust',
-        content: `[package]
-name = "solana-architect-core"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-solana-program = "1.18.0"
-anchor-lang = "0.29.0"
-serde = { version = "1.0", features = ["derive"] }
-tokio = { version = "1.0", features = ["full"] }`,
-      },
-      {
-        path: 'crates/solana-architect-core/src/audit.rs',
-        size: 1850,
-        language: 'Rust',
-        content: `use anchor_lang::prelude::*;
-
-pub struct SolanaContractAuditor {
-    pub pda_checked: bool,
-    pub rent_exempt: bool,
-}
-
-impl SolanaContractAuditor {
-    pub fn audit_instruction(&self, account_info: &AccountInfo) -> Result<()> {
-        // Verificação de Propriedade do Owner e Assinatura
-        if !account_info.is_signer {
-            msg!("Alerta: Conta nao assinada!");
-        }
-        Ok(())
-    }
-}`,
-      },
-    ],
-  },
-  {
     id: 'actix-legacy-cell-07',
     name: 'Actix-Web v0.7 Unsafe Cell Aliasing (Rust)',
     category: 'LEGACY_UNSAFE',
