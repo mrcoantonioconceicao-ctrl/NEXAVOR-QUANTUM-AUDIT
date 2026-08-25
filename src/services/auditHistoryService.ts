@@ -1,6 +1,19 @@
 import { SecurityAuditReport, RustVulnerability, ZeroDayWaveHazard } from '../domain/types.ts';
+import { 
+  db, 
+  ensureAuth, 
+  collection, 
+  doc, 
+  setDoc, 
+  getDocs, 
+  deleteDoc, 
+  query, 
+  orderBy, 
+  limit 
+} from './firebaseClient.ts';
 
 const STORAGE_KEY = 'qaudit_session_history_v1';
+const FIRESTORE_COLLECTION = 'audit_sessions';
 
 export interface AuditSessionSnapshot {
   id: string;
@@ -57,7 +70,8 @@ export interface AuditDiffResult {
 }
 
 /**
- * Retrieves all saved audit sessions from localStorage.
+ * Retrieves all saved audit sessions from localStorage cache immediately,
+ * and fetches the latest from Firebase Firestore.
  */
 export function getAuditHistory(repoFullName?: string): AuditSessionSnapshot[] {
   try {
@@ -83,15 +97,56 @@ export function getAuditHistory(repoFullName?: string): AuditSessionSnapshot[] {
 }
 
 /**
- * Saves an audit report into session history.
+ * Syncs and pulls history from Firebase Firestore into local state.
+ */
+export async function syncHistoryFromFirebase(): Promise<AuditSessionSnapshot[]> {
+  try {
+    await ensureAuth();
+    const q = query(collection(db, FIRESTORE_COLLECTION), orderBy('timestamp', 'desc'), limit(25));
+    const snapshot = await getDocs(q);
+    const remoteList: AuditSessionSnapshot[] = [];
+    
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data() as AuditSessionSnapshot;
+      if (data && data.id) {
+        remoteList.push(data);
+      }
+    });
+
+    if (remoteList.length > 0) {
+      // Merge remote list with local storage
+      const localList = getAuditHistory();
+      const combinedMap = new Map<string, AuditSessionSnapshot>();
+      
+      [...remoteList, ...localList].forEach((item) => {
+        if (!combinedMap.has(item.id)) {
+          combinedMap.set(item.id, item);
+        }
+      });
+      
+      const merged = Array.from(combinedMap.values()).sort(
+        (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      ).slice(0, 20);
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+      return merged;
+    }
+  } catch (err) {
+    console.warn('Firebase sync notice (offline or read error):', err);
+  }
+  return getAuditHistory();
+}
+
+/**
+ * Saves an audit report into session history (Local + Firebase Firestore).
  */
 export function saveAuditSession(report: SecurityAuditReport): AuditSessionSnapshot {
   const history = getAuditHistory();
 
-  const critical = report.vulnerabilities.filter((v) => v.severity === 'CRITICAL').length;
-  const high = report.vulnerabilities.filter((v) => v.severity === 'HIGH').length;
-  const medium = report.vulnerabilities.filter((v) => v.severity === 'MEDIUM').length;
-  const low = report.vulnerabilities.filter((v) => v.severity === 'LOW' || v.severity === 'INFORMATIONAL').length;
+  const critical = (report.vulnerabilities || []).filter((v) => v.severity === 'CRITICAL').length;
+  const high = (report.vulnerabilities || []).filter((v) => v.severity === 'HIGH').length;
+  const medium = (report.vulnerabilities || []).filter((v) => v.severity === 'MEDIUM').length;
+  const low = (report.vulnerabilities || []).filter((v) => v.severity === 'LOW' || v.severity === 'INFORMATIONAL').length;
 
   const snapshot: AuditSessionSnapshot = {
     id: report.id || `session-${Date.now()}`,
@@ -106,13 +161,13 @@ export function saveAuditSession(report: SecurityAuditReport): AuditSessionSnaps
     filesCount: report.filesAudited?.length || 0,
     totalLines: report.totalLinesAudited || 0,
     vulnerabilitiesCount: {
-      total: report.vulnerabilities?.length || 0,
+      total: (report.vulnerabilities || []).length,
       critical,
       high,
       medium,
       low,
     },
-    waveHazardsCount: report.waveHazards?.length || 0,
+    waveHazardsCount: (report.waveHazards || []).length,
     quantumScore: report.quantumMetrics?.quantumReadinessScore || 0,
     report,
   };
@@ -137,11 +192,24 @@ export function saveAuditSession(report: SecurityAuditReport): AuditSessionSnaps
     console.warn('Failed to save audit session into localStorage:', err);
   }
 
+  // Asynchronous Firebase Cloud Persistence
+  (async () => {
+    try {
+      await ensureAuth();
+      const docRef = doc(db, FIRESTORE_COLLECTION, snapshot.id);
+      // Clean undefined fields for Firestore
+      const cleanPayload = JSON.parse(JSON.stringify(snapshot));
+      await setDoc(docRef, cleanPayload, { merge: true });
+    } catch (firebaseErr) {
+      console.warn('Firebase Firestore async persist warning:', firebaseErr);
+    }
+  })();
+
   return snapshot;
 }
 
 /**
- * Removes a session snapshot from history.
+ * Removes a session snapshot from history (Local + Firebase).
  */
 export function deleteAuditSession(id: string): void {
   const history = getAuditHistory();
@@ -151,6 +219,17 @@ export function deleteAuditSession(id: string): void {
   } catch (err) {
     console.warn('Failed to delete session:', err);
   }
+
+  // Delete from Firebase
+  (async () => {
+    try {
+      await ensureAuth();
+      const docRef = doc(db, FIRESTORE_COLLECTION, id);
+      await deleteDoc(docRef);
+    } catch (err) {
+      console.warn('Failed to delete session from Firebase:', err);
+    }
+  })();
 }
 
 /**
@@ -168,9 +247,8 @@ export function clearAuditHistory(): void {
  * Computes deep fingerprint key for matching vulnerabilities across scans.
  */
 function getVulnFingerprint(vuln: RustVulnerability): string {
-  // Normalize file path and match key attributes
-  const cleanFile = vuln.file.replace(/\\/g, '/').toLowerCase();
-  const titleNorm = vuln.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const cleanFile = (vuln.file || '').replace(/\\/g, '/').toLowerCase();
+  const titleNorm = (vuln.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const cweNorm = (vuln.cwe || '').toLowerCase().trim();
   return `${cleanFile}::${cweNorm}::${titleNorm}`;
 }
@@ -179,8 +257,8 @@ function getVulnFingerprint(vuln: RustVulnerability): string {
  * Computes deep fingerprint for wave hazards.
  */
 function getHazardFingerprint(hazard: ZeroDayWaveHazard): string {
-  const mod = hazard.moduleName.toLowerCase().trim();
-  const surface = hazard.theoreticalZeroDaySurface.toLowerCase().slice(0, 40).replace(/[^a-z0-9]/g, '');
+  const mod = (hazard.moduleName || '').toLowerCase().trim();
+  const surface = (hazard.theoreticalZeroDaySurface || '').toLowerCase().slice(0, 40).replace(/[^a-z0-9]/g, '');
   return `${mod}::${surface}`;
 }
 
@@ -194,119 +272,115 @@ export function compareAuditReports(
   const baselineMap = new Map<string, RustVulnerability>();
   const currentMap = new Map<string, RustVulnerability>();
 
-  baseline.vulnerabilities.forEach((v) => {
+  (baseline.vulnerabilities || []).forEach((v) => {
     baselineMap.set(getVulnFingerprint(v), v);
   });
 
-  current.vulnerabilities.forEach((v) => {
+  (current.vulnerabilities || []).forEach((v) => {
     currentMap.set(getVulnFingerprint(v), v);
   });
 
   const newVulnerabilities: RustVulnerability[] = [];
-  const persistingVulnerabilities: RustVulnerability[] = [];
   const fixedVulnerabilities: RustVulnerability[] = [];
+  const persistingVulnerabilities: RustVulnerability[] = [];
   const allDiffItems: VulnerabilityDiffItem[] = [];
 
-  // Check each vulnerability in current scan
-  current.vulnerabilities.forEach((v) => {
-    const fp = getVulnFingerprint(v);
+  // Identify new & persisting vulnerabilities
+  currentMap.forEach((vuln, fp) => {
     if (baselineMap.has(fp)) {
-      persistingVulnerabilities.push(v);
+      persistingVulnerabilities.push(vuln);
       allDiffItems.push({
-        vulnerability: v,
+        vulnerability: vuln,
         status: 'PERSISTING',
-        historicalNote: 'Detectada tanto na auditoria anterior quanto na atual.',
+        historicalNote: 'Identificado no scan anterior e ainda persiste no código atual.',
       });
     } else {
-      newVulnerabilities.push(v);
+      newVulnerabilities.push(vuln);
       allDiffItems.push({
-        vulnerability: v,
+        vulnerability: vuln,
         status: 'NEW',
         introducedInSessionId: current.id,
-        historicalNote: '⚠️ REGRESSÃO: Esta vulnerabilidade NÃO existia na sessão anterior e foi introduzida recentemente.',
+        historicalNote: 'Nova vulnerabilidade introduzida na versão recente.',
       });
     }
   });
 
-  // Check which baseline vulnerabilities are now gone (fixed)
-  baseline.vulnerabilities.forEach((bVuln) => {
-    const fp = getVulnFingerprint(bVuln);
+  // Identify fixed vulnerabilities
+  baselineMap.forEach((vuln, fp) => {
     if (!currentMap.has(fp)) {
-      fixedVulnerabilities.push(bVuln);
+      fixedVulnerabilities.push(vuln);
       allDiffItems.push({
-        vulnerability: bVuln,
+        vulnerability: vuln,
         status: 'FIXED',
-        historicalNote: '✅ REMEDIADA: Vulnerabilidade resolvida e eliminada com sucesso no código atual.',
+        historicalNote: 'Vulnerabilidade sanada ou remediada com sucesso em relação ao baseline.',
       });
     }
   });
 
-  // Wave hazards diff
-  const baselineHazards = new Map<string, ZeroDayWaveHazard>();
-  baseline.waveHazards.forEach((h) => baselineHazards.set(getHazardFingerprint(h), h));
-  const currentHazards = new Map<string, ZeroDayWaveHazard>();
-  current.waveHazards.forEach((h) => currentHazards.set(getHazardFingerprint(h), h));
+  // Compare Wave Hazards
+  const baselineHazardMap = new Map<string, ZeroDayWaveHazard>();
+  const currentHazardMap = new Map<string, ZeroDayWaveHazard>();
+
+  (baseline.waveHazards || []).forEach((h) => {
+    baselineHazardMap.set(getHazardFingerprint(h), h);
+  });
+  (current.waveHazards || []).forEach((h) => {
+    currentHazardMap.set(getHazardFingerprint(h), h);
+  });
 
   const newHazards: ZeroDayWaveHazard[] = [];
   const fixedHazards: ZeroDayWaveHazard[] = [];
   const persistingHazards: ZeroDayWaveHazard[] = [];
 
-  current.waveHazards.forEach((h) => {
-    if (baselineHazards.has(getHazardFingerprint(h))) {
-      persistingHazards.push(h);
+  currentHazardMap.forEach((hazard, fp) => {
+    if (baselineHazardMap.has(fp)) {
+      persistingHazards.push(hazard);
     } else {
-      newHazards.push(h);
+      newHazards.push(hazard);
     }
   });
 
-  baseline.waveHazards.forEach((h) => {
-    if (!currentHazards.has(getHazardFingerprint(h))) {
-      fixedHazards.push(h);
+  baselineHazardMap.forEach((hazard, fp) => {
+    if (!currentHazardMap.has(fp)) {
+      fixedHazards.push(hazard);
     }
   });
 
-  // Score deltas
-  const currentScore = current.overallSecurityScore ?? 0;
-  const baselineScore = baseline.overallSecurityScore ?? 0;
-  const scoreDelta = currentScore - baselineScore;
+  const scoreDelta = (current.overallSecurityScore ?? 0) - (baseline.overallSecurityScore ?? 0);
+  const totalVulnDelta = (current.vulnerabilities || []).length - (baseline.vulnerabilities || []).length;
+  
+  const curCritical = (current.vulnerabilities || []).filter((v) => v.severity === 'CRITICAL').length;
+  const baseCritical = (baseline.vulnerabilities || []).filter((v) => v.severity === 'CRITICAL').length;
+  const criticalDelta = curCritical - baseCritical;
 
-  const currentCritical = current.vulnerabilities.filter((v) => v.severity === 'CRITICAL').length;
-  const baselineCritical = baseline.vulnerabilities.filter((v) => v.severity === 'CRITICAL').length;
-  const criticalDelta = currentCritical - baselineCritical;
+  const curHigh = (current.vulnerabilities || []).filter((v) => v.severity === 'HIGH').length;
+  const baseHigh = (baseline.vulnerabilities || []).filter((v) => v.severity === 'HIGH').length;
+  const highDelta = curHigh - baseHigh;
 
-  const currentHigh = current.vulnerabilities.filter((v) => v.severity === 'HIGH').length;
-  const baselineHigh = baseline.vulnerabilities.filter((v) => v.severity === 'HIGH').length;
-  const highDelta = currentHigh - baselineHigh;
+  const curMedium = (current.vulnerabilities || []).filter((v) => v.severity === 'MEDIUM').length;
+  const baseMedium = (baseline.vulnerabilities || []).filter((v) => v.severity === 'MEDIUM').length;
+  const mediumDelta = curMedium - baseMedium;
 
-  const currentMed = current.vulnerabilities.filter((v) => v.severity === 'MEDIUM').length;
-  const baselineMed = baseline.vulnerabilities.filter((v) => v.severity === 'MEDIUM').length;
-  const mediumDelta = currentMed - baselineMed;
-
-  const totalVulnDelta = current.vulnerabilities.length - baseline.vulnerabilities.length;
   const quantumReadinessDelta =
     (current.quantumMetrics?.quantumReadinessScore ?? 0) -
     (baseline.quantumMetrics?.quantumReadinessScore ?? 0);
 
-  // Verdict logic
-  let verdict: 'CRITICAL_REGRESSION' | 'REGRESSION' | 'IMPROVED' | 'STABLE' | 'EQUAL' = 'EQUAL';
-  let verdictMessage = 'Nenhuma alteração na postura de segurança entre as sessões.';
+  // Verdict calculation
+  let verdict: AuditDiffResult['verdict'] = 'EQUAL';
+  let verdictMessage = 'O estado de segurança permaneceu inalterado.';
 
-  const newCriticalOrHigh = newVulnerabilities.filter(
-    (v) => v.severity === 'CRITICAL' || v.severity === 'HIGH'
-  ).length;
-
-  if (newCriticalOrHigh > 0 || criticalDelta > 0) {
+  if (criticalDelta > 0 || (highDelta > 1 && scoreDelta < -10)) {
     verdict = 'CRITICAL_REGRESSION';
-    verdictMessage = `ALERTA DE REGRESSÃO CRÍTICA: ${newVulnerabilities.length} nova(s) vulnerabilidade(s) introduzida(s) desde o scan anterior, incluindo falhas de alta severidade.`;
-  } else if (newVulnerabilities.length > 0 || scoreDelta < -3) {
+    verdictMessage = `REGRESSÃO CRÍTICA: +${criticalDelta} falhas críticas introduzidas. Queda de ${Math.abs(scoreDelta)} pts no Score de Segurança.`;
+  } else if (scoreDelta < -2 || totalVulnDelta > 0) {
     verdict = 'REGRESSION';
-    verdictMessage = `REGRESSÃO DETECTADA: ${newVulnerabilities.length} nova(s) vulnerabilidade(s) detectada(s). Score de segurança reduziu em ${Math.abs(scoreDelta)} pontos.`;
-  } else if (fixedVulnerabilities.length > 0 || scoreDelta > 0) {
+    verdictMessage = `REGRESSÃO DE SEGURANÇA: ${newVulnerabilities.length} novas vulnerabilidades detectadas. Redução de ${Math.abs(scoreDelta)} pts.`;
+  } else if (scoreDelta > 3 || fixedVulnerabilities.length > 0) {
     verdict = 'IMPROVED';
-    verdictMessage = `EVOLUÇÃO POSITIVA: ${fixedVulnerabilities.length} vulnerabilidade(s) foram remediadas e o Score subiu +${scoreDelta} pontos!`;
-  } else {
+    verdictMessage = `EVOLUÇÃO POSITIVA: ${fixedVulnerabilities.length} vulnerabilidades eliminadas! Aumento de +${scoreDelta} pts no Score de Segurança.`;
+  } else if (Math.abs(scoreDelta) <= 2 && totalVulnDelta === 0) {
     verdict = 'STABLE';
-    verdictMessage = 'Postura de segurança idêntica à baseline anterior.';
+    verdictMessage = 'ESTABILIDADE: Métricas e posture de segurança consistentes com a baseline.';
   }
 
   return {
@@ -325,7 +399,7 @@ export function compareAuditReports(
       newHazards,
       fixedHazards,
       persistingHazards,
-      deltaCount: current.waveHazards.length - baseline.waveHazards.length,
+      deltaCount: (current.waveHazards || []).length - (baseline.waveHazards || []).length,
     },
     quantumReadinessDelta,
     verdict,
@@ -334,46 +408,14 @@ export function compareAuditReports(
 }
 
 /**
- * Creates a realistic synthetic prior release/baseline for demo and instant comparison testing.
+ * Creates a synthetic baseline session representation for comparison.
  */
-export function generateSyntheticBaselineSession(current: SecurityAuditReport): SecurityAuditReport {
-  const currentVulns = current.vulnerabilities || [];
-  
-  // Baseline had a subset of current vulns (so current introduced new ones), plus an old fixed vuln
-  const subsetToKeep = currentVulns.slice(1); // excluding first item makes first item "NEW" in current!
-
-  const oldFixedVuln: RustVulnerability = {
-    id: 'HIST-LEGACY-009',
-    file: current.filesAudited[0]?.path || 'src/legacy_crypto.rs',
-    line: 45,
-    title: 'Descontinuação de Primitiva Criptográfica MD5 / SHA-1 Desatualizada',
-    severity: 'MEDIUM',
-    cwe: 'CWE-327',
-    cvssScore: 5.9,
-    category: 'QUANTUM_CRYPTO',
-    description: 'Hashing de senha e integridade utilizando algoritmo fraco e vulnerável a colisões.',
-    unsafeRiskDetail: 'Vulnerabilidade a ataques de pré-imagem e colisão rápida.',
-    waveShockwaveRadius: 'LOCAL_MODULE',
-    originalSnippet: 'let hash = md5::compute(raw_input_token);',
-    remediatedSnippet: 'let hash = sha2::Sha256::digest(raw_input_token);',
-    miriVerificationStatus: 'COMPLIANT',
-    language: current.primaryLanguage || 'Rust',
-  };
-
-  const baselineTimestamp = new Date(
-    new Date(current.timestamp || Date.now()).getTime() - 24 * 3600 * 1000 * 3
-  ).toISOString();
-
+export function generateSyntheticBaselineSession(report: SecurityAuditReport): SecurityAuditReport {
   return {
-    ...current,
-    id: `baseline-sim-${Date.now()}`,
-    timestamp: baselineTimestamp,
-    overallSecurityScore: Math.min(100, (current.overallSecurityScore || 70) + 12),
-    vulnerabilities: [...subsetToKeep, oldFixedVuln],
-    executiveSummary: `Auditoria de baseline histórica anterior (Release v1.2.0-baseline) para o repositório ${current.targetRepo.fullName}.`,
-    targetRepo: {
-      ...current.targetRepo,
-      defaultBranch: 'release-v1.2.0',
-    },
+    ...report,
+    id: `synthetic-baseline-${Date.now()}`,
+    timestamp: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    overallSecurityScore: Math.max(10, (report.overallSecurityScore || 70) - 15),
+    vulnerabilities: report.vulnerabilities.slice(0, Math.max(1, report.vulnerabilities.length - 1)),
   };
 }

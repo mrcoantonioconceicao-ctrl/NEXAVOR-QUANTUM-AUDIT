@@ -19,7 +19,7 @@ import { fetchGitHubRepository } from './services/githubService.ts';
 import { runFullSecurityAudit } from './services/auditService.ts';
 import { exportExecutivePdf } from './services/pdfExporter.ts';
 import { downloadSarifFile } from './services/sarifExporter.ts';
-import { saveAuditSession, getAuditHistory } from './services/auditHistoryService.ts';
+import { saveAuditSession, getAuditHistory, syncHistoryFromFirebase } from './services/auditHistoryService.ts';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
@@ -32,7 +32,7 @@ export default function App() {
   const [notification, setNotification] = useState<string | null>(null);
   const [auditErrorMessage, setAuditErrorMessage] = useState<string | null>(null);
 
-  // Load existing session history on mount if user ran audits previously
+  // Load existing session history on mount from LocalStorage and sync with Firebase Firestore
   useEffect(() => {
     const history = getAuditHistory();
     if (history.length > 0 && history[0].report) {
@@ -41,6 +41,13 @@ export default function App() {
         prev.map((s) => ({ ...s, status: 'COMPLETED', progressPercent: 100 }))
       );
     }
+
+    // Background sync with Firestore
+    syncHistoryFromFirebase().then((synced) => {
+      if (synced && synced.length > 0 && !report) {
+        setReport(synced[0].report);
+      }
+    });
   }, []);
 
   const showNotification = (msg: string) => {
