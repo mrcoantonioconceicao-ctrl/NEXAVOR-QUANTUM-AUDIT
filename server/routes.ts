@@ -79,6 +79,40 @@ export async function handleAnalyzeRepo(req: Request, res: Response) {
   }
 }
 
+/**
+ * Proxy for OSV.dev and GitHub Advisory Database batch queries
+ * Enables real-time supply chain querying for Cargo.toml, package.json, and go.mod.
+ */
+export async function handleOsvBatchProxy(req: Request, res: Response) {
+  try {
+    const { queries } = req.body;
+    if (!queries || !Array.isArray(queries) || queries.length === 0) {
+      return res.status(400).json({ error: 'Lista de queries é obrigatória.' });
+    }
+
+    const osvResponse = await fetch('https://api.osv.dev/v1/querybatch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ queries }),
+    });
+
+    if (!osvResponse.ok) {
+      return res.status(osvResponse.status).json({
+        error: `OSV.dev API retornou status ${osvResponse.status}`,
+      });
+    }
+
+    const data = await osvResponse.json();
+    return res.json(data);
+  } catch (error: any) {
+    console.warn('OSV.dev proxy error:', error);
+    return res.status(502).json({
+      error: 'Falha ao contatar a API do OSV.dev.',
+      details: error?.message,
+    });
+  }
+}
+
 export interface ParsedGitHubUrl {
   owner: string;
   repo: string;

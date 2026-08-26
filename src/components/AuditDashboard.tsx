@@ -20,11 +20,15 @@ import {
   Sparkles,
   Lightbulb,
   Shield,
+  Package,
+  ExternalLink,
+  AlertOctagon,
 } from 'lucide-react';
 import { SecurityAuditReport, VulnerabilitySeverity, SourceFile } from '../domain/types.ts';
 import { TabType } from './Sidebar.tsx';
 import { getAuditHistory, compareAuditReports, generateSyntheticBaselineSession } from '../services/auditHistoryService.ts';
 import { SecurityBadgeModal } from './SecurityBadgeModal.tsx';
+import { DependencyVulnerabilitiesPanel } from './DependencyVulnerabilitiesPanel.tsx';
 
 interface AuditDashboardProps {
   report: SecurityAuditReport;
@@ -133,6 +137,39 @@ export const AuditDashboard: React.FC<AuditDashboardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Critical CVE & Supply Chain Immediate Alert Banner */}
+      {report.dependencyAnalysis && report.dependencyAnalysis.vulnerabilities.some(v => v.severity === 'CRITICAL' || v.severity === 'HIGH') && (
+        <div className="rounded-lg border-2 border-red-500/80 bg-red-950/40 p-4 shadow-lg shadow-red-950/50 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="p-2.5 rounded-md bg-red-900/60 border border-red-500/60 text-red-300 shrink-0 animate-pulse">
+              <AlertOctagon className="h-6 w-6 text-red-400" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-mono font-black tracking-wider uppercase text-red-200 bg-red-500/30 px-2 py-0.5 rounded border border-red-400/50">
+                  🚨 ALERTA CRÍTICO DE SUPPLY CHAIN DETECTADO
+                </span>
+                <span className="text-xs font-mono text-red-300 font-bold">
+                  {report.dependencyAnalysis.vulnerabilities.filter(v => v.severity === 'CRITICAL' || v.severity === 'HIGH').length} CVEs Críticas / RUSTSEC
+                </span>
+              </div>
+              <p className="text-xs text-red-200/90 font-sans leading-relaxed">
+                Foram identificadas dependências com vulnerabilidades severas ativas (RCE, Prototype Pollution, Data Race ou DoS) em manifestos ({report.dependencyAnalysis.manifestsScanned.join(', ')}). Ação imediata é requerida antes do deploy em produção.
+              </p>
+            </div>
+          </div>
+          <div className="shrink-0 flex items-center gap-2">
+            <button
+              onClick={() => onNavigateToTab('review')}
+              className="px-3.5 py-2 rounded border border-red-400 bg-red-600 hover:bg-red-500 text-white font-mono text-xs font-bold flex items-center gap-1.5 transition-all shadow-md active:scale-95"
+            >
+              <span>Aplicar Patches de Remediação</span>
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Historical Diff / Regression Highlights Banner */}
       <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -353,7 +390,11 @@ export const AuditDashboard: React.FC<AuditDashboardProps> = ({
         </div>
       </div>
 
-      {/* Multi-File Tree Explorer (Complete Repository Analysis) */}
+      {/* Categorized Supply Chain & Manifest Dependency Vulnerabilities Panel */}
+      <DependencyVulnerabilitiesPanel
+        report={report}
+        onNavigateToReview={() => onNavigateToTab('review')}
+      />
       <div className="rounded border border-zinc-800 bg-zinc-900/40 p-5 space-y-4">
         <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
           <div className="flex items-center gap-2">

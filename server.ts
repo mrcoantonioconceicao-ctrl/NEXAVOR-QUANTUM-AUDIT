@@ -1,7 +1,7 @@
 import express from 'express';
 import path from 'path';
 import dotenv from 'dotenv';
-import { handleAnalyzeRepo, handleFetchGitHub, handleGetSystemMetrics } from './server/routes.js';
+import { handleAnalyzeRepo, handleFetchGitHub, handleGetSystemMetrics, handleOsvBatchProxy } from './server/routes.js';
 import {
   handleGetWebhookConfigs,
   handleSaveWebhookConfig,
@@ -38,6 +38,7 @@ app.get('/api/metrics', handleGetSystemMetrics);
 
 // Real API Routes
 app.post('/api/audit/analyze', handleAnalyzeRepo);
+app.post('/api/audit/osv-batch', handleOsvBatchProxy);
 app.get('/api/github/repo', handleFetchGitHub);
 
 // Webhook Configuration & Real-time Integration Routes

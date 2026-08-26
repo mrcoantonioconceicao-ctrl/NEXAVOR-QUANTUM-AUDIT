@@ -127,7 +127,7 @@ export interface QuantumCryptoMetrics {
 export interface BpmnStep {
   id: string;
   name: string;
-  role: 'SOA_INGESTION' | 'AST_ANALYSIS' | 'WAVE_ZERO_DAY' | 'QUANTUM_CRYPTO' | 'CODE_REVIEW' | 'EXECUTIVE_SYNTHESIS';
+  role: 'SOA_INGESTION' | 'SUPPLY_CHAIN_CVE' | 'AST_ANALYSIS' | 'WAVE_ZERO_DAY' | 'QUANTUM_CRYPTO' | 'CODE_REVIEW' | 'EXECUTIVE_SYNTHESIS';
   status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
   description: string;
   progressPercent: number;
@@ -179,6 +179,38 @@ export interface SecurityAuditReport {
     estimatedEffort: string;
   }>;
   securityTests: SecurityTestCase[];
+  dependencyAnalysis?: {
+    manifestsScanned: string[];
+    totalDependenciesCount: number;
+    vulnerableCount: number;
+    outdatedCount: number;
+    rustsecCount: number;
+    vulnerabilities: Array<{
+      manifestPath: string;
+      ecosystem: string;
+      packageName: string;
+      versionConstraint: string;
+      advisoryId: string;
+      cve?: string;
+      severity: VulnerabilitySeverity;
+      cvssScore: number;
+      title: string;
+      description: string;
+      fixedVersion: string;
+      advisoryUrl: string;
+      remediation: string;
+    }>;
+    outdated: Array<{
+      manifestPath: string;
+      ecosystem: string;
+      packageName: string;
+      currentVersion: string;
+      latestVersion: string;
+      isMajorBehind: boolean;
+      status: 'OUTDATED' | 'UP_TO_DATE' | 'DEPRECATED' | 'EOL';
+      remediationCommand: string;
+    }>;
+  };
 }
 
 export type WebhookEvent = 'push' | 'pull_request' | 'workflow_run' | 'release' | 'ping';
