@@ -14,6 +14,77 @@ import { computeWaveSpectralAnalysis } from '../domain/waveTheory.ts';
 import { auditQuantumCryptography } from '../domain/quantumCrypto.ts';
 import { generateSecurityTestSuite } from '../domain/securityTests.ts';
 
+export interface CvssScoreCalculationInput {
+  vulnerabilities: Array<{ severity?: string; cvssScore?: number }>;
+  totalUnsafeBlocks?: number;
+  waveHazardsCount?: number;
+  quantumReadinessScore?: number;
+}
+
+/**
+  * Calcula a severidade e a nota geral de segurança com pesos de CVSS v3.1/v4.0.
+  * Se o repositório não possuir vulnerabilidades críticas (CVSS 9.0-10.0),
+  * pontua proporcionalmente na faixa de 65 a 75/100 para evitar alarmismo injustificado.
+  */
+export function calculateCvssWeightedSecurityScore(input: CvssScoreCalculationInput): number {
+  const {
+    vulnerabilities,
+    totalUnsafeBlocks = 0,
+    waveHazardsCount = 0,
+    quantumReadinessScore = 100,
+  } = input;
+
+  const criticalCount = vulnerabilities.filter(
+    (v) => v.severity === 'CRITICAL' || (v.cvssScore !== undefined && v.cvssScore >= 9.0)
+  ).length;
+
+  const highCount = vulnerabilities.filter(
+    (v) => v.severity === 'HIGH' || (v.cvssScore !== undefined && v.cvssScore >= 7.0 && v.cvssScore < 9.0)
+  ).length;
+
+  const mediumCount = vulnerabilities.filter(
+    (v) => v.severity === 'MEDIUM' || (v.cvssScore !== undefined && v.cvssScore >= 4.0 && v.cvssScore < 7.0)
+  ).length;
+
+  const lowCount = vulnerabilities.filter(
+    (v) => v.severity === 'LOW' || (v.cvssScore !== undefined && v.cvssScore < 4.0)
+  ).length;
+
+  // CVSS Weighted Deductions
+  const critDeduction = Math.min(45, criticalCount * 20);
+  const highDeduction = Math.min(20, highCount * 4.0);
+  const medDeduction = Math.min(10, mediumCount * 1.5);
+  const lowDeduction = Math.min(4, lowCount * 0.5);
+  const unsafeDeduction = Math.min(8, totalUnsafeBlocks * 1.0);
+  const waveDeduction = Math.min(5, waveHazardsCount * 1.0);
+  const quantumDeduction =
+    quantumReadinessScore < 50 ? Math.min(5, (50 - quantumReadinessScore) * 0.1) : 0;
+
+  let calculatedScore =
+    100 -
+    (critDeduction +
+      highDeduction +
+      medDeduction +
+      lowDeduction +
+      unsafeDeduction +
+      waveDeduction +
+      quantumDeduction);
+
+  // Exact rule: Repositories WITHOUT critical vulnerabilities (CVSS < 9.0)
+  // are scored proportionally in the 65 - 75 range (if non-critical issues exist) or up to 95 if completely clean!
+  if (criticalCount === 0) {
+    if (highCount === 0 && mediumCount === 0 && lowCount === 0 && totalUnsafeBlocks === 0) {
+      return 95;
+    }
+    // Has non-critical advisories/updates: map strictly to 65 - 75
+    const mappedScore = Math.round(65 + (Math.max(0, Math.min(30, calculatedScore - 50)) / 30) * 10);
+    return Math.min(75, Math.max(65, mappedScore));
+  }
+
+  // Critical vulnerabilities present (CVSS 9.0-10.0): range 15 - 55
+  return Math.max(15, Math.min(55, Math.round(calculatedScore)));
+}
+
 /**
  * Escaneia os arquivos de manifesto (`Cargo.toml`, `package.json`, `go.mod`, etc.)
  * para identificar dependências obsoletas, depreciadas e vulnerabilidades conhecidas (CVEs/GHSA/RustSec)
@@ -132,20 +203,30 @@ export async function runFullSecurityAudit(
 
   onProgress?.(5, 100, 'Code Review e patches de remediação multi-linguagem gerados com sucesso.');
 
-  // Step 7: Executive Synthesis & Security Score
+  // Step 7: Executive Synthesis & Security Score Calculation (CVSS v3.1/v4.0 Weighted)
   onProgress?.(6, 50, 'Sintetizando scorecard executivo, matriz de risco e testes de segurança...');
 
   const totalVulns = aiEnrichedVulnerabilities.length;
-  const criticalCount = aiEnrichedVulnerabilities.filter((v) => v.severity === 'CRITICAL').length;
-  const highCount = aiEnrichedVulnerabilities.filter((v) => v.severity === 'HIGH').length;
-  const mediumCount = aiEnrichedVulnerabilities.filter((v) => v.severity === 'MEDIUM').length;
+  const criticalCount = aiEnrichedVulnerabilities.filter(
+    (v) => v.severity === 'CRITICAL' || (v.cvssScore && v.cvssScore >= 9.0)
+  ).length;
+  const highCount = aiEnrichedVulnerabilities.filter(
+    (v) => v.severity === 'HIGH' || (v.cvssScore && v.cvssScore >= 7.0 && v.cvssScore < 9.0)
+  ).length;
+  const mediumCount = aiEnrichedVulnerabilities.filter(
+    (v) => v.severity === 'MEDIUM' || (v.cvssScore && v.cvssScore >= 4.0 && v.cvssScore < 7.0)
+  ).length;
 
-  // Real Score 0 - 100 calculation
-  const deductions = (criticalCount * 22) + (highCount * 12) + (mediumCount * 5) + (waveAnalysis.hazards.length * 4) + (quantumMetrics.quantumReadinessScore < 50 ? 15 : 0);
-  const overallSecurityScore = Math.max(12, Math.min(100, 100 - deductions));
+  // Real CVSS v3.1/v4.0 Weighted Calculation
+  const overallSecurityScore = calculateCvssWeightedSecurityScore({
+    vulnerabilities: aiEnrichedVulnerabilities,
+    totalUnsafeBlocks: staticResult.totalUnsafeBlocks,
+    waveHazardsCount: waveAnalysis.hazards.length,
+    quantumReadinessScore: quantumMetrics.quantumReadinessScore,
+  });
 
   if (!aiExecutiveSummary) {
-    aiExecutiveSummary = `Auditoria de Segurança Executiva Real realizada para o repositório ${repo.fullName} cobrindo linguagens [${staticResult.detectedLanguages.join(', ')}]. Foram analisadas ${staticResult.totalLines} linhas de código e ${files.length} arquivos estruturais, além de ${dependencyResult.totalDependenciesCount} dependências de pacotes. Foram identificados ${totalVulns} pontos de atenção em segurança (${criticalCount} críticos e ${highCount} de alta severidade), com ${dependencyResult.vulnerableCount} alertas de supply chain (RustSec / OSV). O sistema apresenta exposição que requer atualização de manifests, mitigação de concorrência e conformidade com algoritmos pós-quânticos (NIST PQC).`;
+    aiExecutiveSummary = `Parecer pericial de auditoria automatizada para ${repo.fullName} (${staticResult.detectedLanguages.join(', ')}). Foram inspecionadas ${staticResult.totalLines} linhas de código e ${files.length} arquivos-fonte, mapeando ${dependencyResult.totalDependenciesCount} dependências de pacote. O repositório registra ${totalVulns} apontamentos de segurança (${criticalCount} críticos, ${highCount} de alta severidade e ${mediumCount} moderados) com ${dependencyResult.vulnerableCount} advisories de supply chain (OSV.dev / RustSec / GHSA). A análise de ressonância espectral de entropia indica postura de risco mensurável, enquanto o motor criptográfico avalia conformidade com os novos padrões NIST PQC (FIPS 203 ML-KEM e FIPS 204 ML-DSA).`;
   }
 
   const securityTests = generateSecurityTestSuite(aiEnrichedVulnerabilities);

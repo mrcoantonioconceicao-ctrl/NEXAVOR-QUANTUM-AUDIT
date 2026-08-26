@@ -14,8 +14,13 @@ import {
   Clock,
   ShieldCheck,
   Sparkles,
+  GitPullRequest,
+  Loader2,
+  Lock,
+  ShieldAlert,
 } from 'lucide-react';
 import { SecurityAuditReport, VulnerabilitySeverity } from '../domain/types.ts';
+import { createGitHubPullRequest, CreatePrResult } from '../services/githubService.ts';
 
 interface DependencyVulnerabilitiesPanelProps {
   report: SecurityAuditReport;
@@ -33,10 +38,64 @@ export const DependencyVulnerabilitiesPanel: React.FC<DependencyVulnerabilitiesP
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showOutdatedTable, setShowOutdatedTable] = useState<boolean>(true);
 
+  // 1-Click Pull Request Remediation State
+  const [isCreatingPr, setIsCreatingPr] = useState<boolean>(false);
+  const [prResult, setPrResult] = useState<CreatePrResult | null>(null);
+  const [githubTokenInput, setGithubTokenInput] = useState<string>('');
+  const [showTokenModal, setShowTokenModal] = useState<boolean>(false);
+
   const handleCopyCommand = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleTriggerAutoPr = async (tokenOverride?: string) => {
+    if (!depAnalysis) return;
+
+    setIsCreatingPr(true);
+    setPrResult(null);
+
+    const patches = [
+      ...depAnalysis.vulnerabilities.map((v) => ({
+        manifestPath: v.manifestPath,
+        packageName: v.packageName,
+        currentVersion: v.versionConstraint,
+        targetVersion: v.fixedVersion,
+        remediationCommand: v.remediation,
+      })),
+      ...depAnalysis.outdated.map((o) => ({
+        manifestPath: o.manifestPath,
+        packageName: o.packageName,
+        currentVersion: o.currentVersion,
+        targetVersion: o.latestVersion,
+        remediationCommand: o.remediationCommand,
+      })),
+    ];
+
+    // Deduplicate patches by manifestPath + packageName
+    const uniquePatchesMap = new Map<string, (typeof patches)[0]>();
+    patches.forEach((p) => {
+      const key = `${p.manifestPath}::${p.packageName}`;
+      if (!uniquePatchesMap.has(key)) {
+        uniquePatchesMap.set(key, p);
+      }
+    });
+
+    const uniquePatches = Array.from(uniquePatchesMap.values());
+
+    const result = await createGitHubPullRequest({
+      repoUrl: report.targetRepo.url || `https://github.com/${report.targetRepo.owner}/${report.targetRepo.name}`,
+      githubToken: tokenOverride !== undefined ? tokenOverride : githubTokenInput,
+      patches: uniquePatches,
+    });
+
+    setIsCreatingPr(false);
+    setPrResult(result);
+
+    if (result.requiresToken && !tokenOverride) {
+      setShowTokenModal(true);
+    }
   };
 
   const ecosystemsAvailable = useMemo(() => {
@@ -191,8 +250,80 @@ export const DependencyVulnerabilitiesPanel: React.FC<DependencyVulnerabilitiesP
               <span>{maxCvss.toFixed(1)} / 10.0</span>
             </div>
           )}
+
+          {/* 1-Click PR Remediation Button */}
+          <button
+            onClick={() => handleTriggerAutoPr()}
+            disabled={isCreatingPr || (depAnalysis.vulnerableCount === 0 && depAnalysis.outdated.length === 0)}
+            className="px-3.5 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold flex items-center gap-2 shadow-sm shadow-emerald-950 transition-all cursor-pointer"
+          >
+            {isCreatingPr ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin text-white" />
+                <span>Gerando Branch & PR...</span>
+              </>
+            ) : (
+              <>
+                <GitPullRequest className="h-4 w-4 text-emerald-200" />
+                <span>⚡ Aplicar Correção em 1-Clique (GitHub PR)</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
+
+      {/* PR Result Status Alert Banner */}
+      {prResult && (
+        <div
+          className={`p-4 rounded-lg border text-xs font-mono space-y-2 transition-all ${
+            prResult.success
+              ? 'bg-emerald-950/70 border-emerald-500/50 text-emerald-200'
+              : 'bg-red-950/70 border-red-500/50 text-red-200'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {prResult.success ? (
+                <CheckCircle className="h-4 w-4 text-emerald-400 shrink-0" />
+              ) : (
+                <AlertTriangle className="h-4 w-4 text-red-400 shrink-0" />
+              )}
+              <span className="font-bold text-sm">
+                {prResult.success
+                  ? prResult.isSimulated
+                    ? 'Branch de Remediação Preparada (Modo Preview)'
+                    : `Pull Request ${prResult.prNumber ? `#${prResult.prNumber}` : ''} Criado com Sucesso!`
+                  : 'Erro ao Gerar Pull Request de Remediação'}
+              </span>
+            </div>
+
+            {prResult.prUrl && (
+              <a
+                href={prResult.prUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-emerald-500 text-zinc-950 font-bold text-xs hover:bg-emerald-400 transition-colors shadow-xs"
+              >
+                <span>Abrir Pull Request no GitHub</span>
+                <ArrowUpRight className="h-3.5 w-3.5" />
+              </a>
+            )}
+          </div>
+
+          <p className="text-[11px] opacity-90">{prResult.message || prResult.error}</p>
+
+          {prResult.branch && (
+            <div className="text-[10px] text-zinc-400 flex items-center gap-3">
+              <span>
+                Branch Criada: <strong className="text-zinc-200 font-mono">{prResult.branch}</strong>
+              </span>
+              <span>
+                Manifestos Corrigidos: <strong className="text-emerald-400 font-mono">{prResult.patchedFiles?.join(', ') || 'Todos'}</strong>
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Manifests Scanned Pills */}
       <div className="flex flex-wrap items-center gap-2 text-xs font-mono bg-zinc-950/70 p-3 rounded border border-zinc-800/80">
@@ -534,6 +665,64 @@ export const DependencyVulnerabilitiesPanel: React.FC<DependencyVulnerabilitiesP
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* GitHub Token Modal for 1-Click PR */}
+      {showTokenModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4">
+          <div className="w-full max-w-lg rounded-lg border border-zinc-800 bg-zinc-900 p-6 space-y-4 shadow-2xl font-mono text-xs">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Lock className="h-4 w-4 text-emerald-400" />
+                <h3 className="text-sm font-bold uppercase text-white">GitHub Token (PAT) Necessário</h3>
+              </div>
+              <button
+                onClick={() => setShowTokenModal(false)}
+                className="text-zinc-500 hover:text-white text-base font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-zinc-300 font-sans leading-relaxed">
+              Para abrir um Pull Request diretamente no repositório <strong className="text-white">{report.targetRepo.fullName}</strong>, forneça um Personal Access Token (PAT) com a permissão <code className="text-emerald-400 bg-zinc-950 px-1 py-0.5 rounded">repo</code>.
+            </p>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] text-zinc-400 uppercase font-bold">Personal Access Token (ghp_...):</label>
+              <input
+                type="password"
+                value={githubTokenInput}
+                onChange={(e) => setGithubTokenInput(e.target.value)}
+                placeholder="ghp_1234567890abcdefghijklmnopqrstuvwxyz"
+                className="w-full px-3 py-2 rounded bg-zinc-950 border border-zinc-700 text-white font-mono text-xs focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                onClick={() => {
+                  setShowTokenModal(false);
+                  handleTriggerAutoPr('SIMULATED');
+                }}
+                className="px-3.5 py-1.5 rounded border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold"
+              >
+                Continuar sem Token (Simular PR)
+              </button>
+              <button
+                onClick={() => {
+                  setShowTokenModal(false);
+                  handleTriggerAutoPr(githubTokenInput);
+                }}
+                disabled={!githubTokenInput.trim()}
+                className="px-4 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold flex items-center gap-2"
+              >
+                <GitPullRequest className="h-3.5 w-3.5" />
+                <span>Criar PR com Token Real</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

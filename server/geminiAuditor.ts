@@ -162,7 +162,8 @@ export async function runGeminiDeepAudit(
 
   const systemInstruction = `You are a Principal Cyber Security Architect & Quantum Information Specialist.
 Audit repositories across ALL programming languages for severe security vulnerabilities, memory safety, concurrency, injections, cryptographic obsolescence, and zero-day wave theory vectors.
-Provide structured, mathematically sound security audits with compilable/executable remediations.`;
+Provide structured, mathematically sound security audits with compilable/executable remediations.
+CRITICAL LANGUAGE MANDATE: You MUST provide all titles, descriptions, explanations, architecture verdicts, zero-day threat analysis, roadmap phases, and ESPECIALLY all vulnerability remediation suggestions and actionable steps in professional technical Portuguese (Português). Code snippets themselves should be valid code, with comments and surrounding suggestions in Portuguese.`;
 
   const prompt = `Perform an in-depth security, quantum-crypto, and zero-day wave-theory audit on the following repository:
 Repository: ${payload.repoName}
@@ -172,6 +173,7 @@ Issues Summary: ${payload.detectedIssuesSummary || 'None'}
 Source Files:
 ${codeContext}
 
+CRITICAL: All textual analysis, descriptions, vulnerability titles, suggestions, remediation guidance, and roadmap steps MUST be in professional Portuguese (Português).
 Return a valid JSON object matching the audit schema.`;
 
   for (const model of CANDIDATE_MODELS) {

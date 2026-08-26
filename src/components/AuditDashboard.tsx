@@ -23,12 +23,15 @@ import {
   Package,
   ExternalLink,
   AlertOctagon,
+  Loader2,
+  Lock,
 } from 'lucide-react';
 import { SecurityAuditReport, VulnerabilitySeverity, SourceFile } from '../domain/types.ts';
 import { TabType } from './Sidebar.tsx';
 import { getAuditHistory, compareAuditReports, generateSyntheticBaselineSession } from '../services/auditHistoryService.ts';
 import { SecurityBadgeModal } from './SecurityBadgeModal.tsx';
 import { DependencyVulnerabilitiesPanel } from './DependencyVulnerabilitiesPanel.tsx';
+import { createGitHubPullRequest, CreatePrResult } from '../services/githubService.ts';
 
 interface AuditDashboardProps {
   report: SecurityAuditReport;
@@ -45,6 +48,72 @@ export const AuditDashboard: React.FC<AuditDashboardProps> = ({
   const [selectedFileForInspection, setSelectedFileForInspection] = useState<SourceFile>(
     report.filesAudited[0] || { path: 'src/lib.rs', size: 0, content: '' }
   );
+
+  // 1-Click Pull Request Remediation State
+  const [isCreatingPr, setIsCreatingPr] = useState<boolean>(false);
+  const [prResult, setPrResult] = useState<CreatePrResult | null>(null);
+  const [githubTokenInput, setGithubTokenInput] = useState<string>('');
+  const [showTokenModal, setShowTokenModal] = useState<boolean>(false);
+  const [activeVulnForPr, setActiveVulnForPr] = useState<string | null>(null);
+
+  const handleApplyPullRequest = async (targetVulnId?: string, tokenOverride?: string) => {
+    setIsCreatingPr(true);
+    setPrResult(null);
+    setActiveVulnForPr(targetVulnId || 'ALL');
+
+    const targetVulns = targetVulnId
+      ? report.vulnerabilities.filter((v) => v.id === targetVulnId)
+      : report.vulnerabilities;
+
+    const patches = targetVulns.map((v) => {
+      // Deduce packageName & targetVersion from title or vulnerability metadata
+      const packageName = v.rustsecId || v.cwe || v.title.split(' ')[0] || 'crate';
+      const targetVersion = v.fixedVersion || '0.4.38';
+      const manifestPath = v.file.includes('/') ? v.file : `Cargo.toml`;
+
+      return {
+        manifestPath,
+        packageName,
+        currentVersion: '0.1.0',
+        targetVersion,
+        remediationCommand: v.suggestion || v.description,
+      };
+    });
+
+    // Also include any dependency vulnerabilities if available
+    if (report.dependencyAnalysis?.vulnerabilities) {
+      report.dependencyAnalysis.vulnerabilities.forEach((dv) => {
+        patches.push({
+          manifestPath: dv.manifestPath,
+          packageName: dv.packageName,
+          currentVersion: dv.versionConstraint,
+          targetVersion: dv.fixedVersion,
+          remediationCommand: dv.remediation,
+        });
+      });
+    }
+
+    const result = await createGitHubPullRequest({
+      repoUrl: report.targetRepo?.url || `https://github.com/${report.targetRepo?.owner || 'owner'}/${report.targetRepo?.name || 'repo'}`,
+      githubToken: tokenOverride !== undefined ? tokenOverride : githubTokenInput,
+      patches: patches.length > 0 ? patches : [{
+        manifestPath: 'Cargo.toml',
+        packageName: 'chrono',
+        targetVersion: '0.4.38',
+      }],
+      prTitle: targetVulnId
+        ? `[RustShield Quantum] Remediação: ${targetVulns[0]?.title || 'Patch de Segurança'}`
+        : `[RustShield Quantum] Remediação Automática Completa (${report.vulnerabilities.length} vulnerabilidades)`,
+    });
+
+    setIsCreatingPr(false);
+    setActiveVulnForPr(null);
+    setPrResult(result);
+
+    if (result.requiresToken && !tokenOverride) {
+      setShowTokenModal(true);
+    }
+  };
 
   // Compare with baseline if history exists or generate demo baseline
   const comparison = useMemo(() => {
@@ -469,14 +538,14 @@ export const AuditDashboard: React.FC<AuditDashboardProps> = ({
 
       {/* Top Critical Vulnerabilities List */}
       <div className="rounded border border-zinc-800 bg-zinc-900/40 p-5 space-y-4">
-        <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-800/80 pb-3 gap-3">
           <div className="flex items-center gap-2">
             <ShieldAlert className="h-4 w-4 text-red-400" />
             <h3 className="text-xs font-bold uppercase tracking-wider text-white font-mono">
               Inventário de Vulnerabilidades ({report.vulnerabilities.length} detectadas)
             </h3>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2.5 flex-wrap">
             {criticals.length > 0 && (
               <span className="px-2 py-0.5 bg-red-500/10 text-red-400 text-[10px] font-mono font-bold rounded">
                 {criticals.length} CRITICAL
@@ -492,8 +561,80 @@ export const AuditDashboard: React.FC<AuditDashboardProps> = ({
                 {mediums.length} MEDIUM
               </span>
             )}
+            
+            {/* Global PR Remediation Button */}
+            <button
+              onClick={() => handleApplyPullRequest()}
+              disabled={isCreatingPr || report.vulnerabilities.length === 0}
+              className="px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-mono text-xs font-bold flex items-center gap-1.5 shadow-sm shadow-emerald-950 transition-all cursor-pointer"
+            >
+              {isCreatingPr && activeVulnForPr === 'ALL' ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-white" />
+                  <span>Gerando PR...</span>
+                </>
+              ) : (
+                <>
+                  <GitPullRequest className="h-3.5 w-3.5 text-emerald-200" />
+                  <span>⚡ Aplicar Correção via Pull Request</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
+
+        {/* PR Result Status Alert Banner */}
+        {prResult && (
+          <div
+            className={`p-4 rounded-lg border text-xs font-mono space-y-2 transition-all ${
+              prResult.success
+                ? 'bg-emerald-950/70 border-emerald-500/50 text-emerald-200'
+                : 'bg-red-950/70 border-red-500/50 text-red-200'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {prResult.success ? (
+                  <CheckCircle className="h-4 w-4 text-emerald-400 shrink-0" />
+                ) : (
+                  <AlertTriangle className="h-4 w-4 text-red-400 shrink-0" />
+                )}
+                <span className="font-bold text-sm">
+                  {prResult.success
+                    ? prResult.isSimulated
+                      ? 'Branch de Remediação Preparada (Modo Preview)'
+                      : `Pull Request ${prResult.prNumber ? `#${prResult.prNumber}` : ''} Criado com Sucesso!`
+                    : 'Erro ao Gerar Pull Request de Remediação'}
+                </span>
+              </div>
+
+              {prResult.prUrl && (
+                <a
+                  href={prResult.prUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-emerald-500 text-zinc-950 font-bold text-xs hover:bg-emerald-400 transition-colors shadow-xs"
+                >
+                  <span>Abrir Pull Request no GitHub</span>
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                </a>
+              )}
+            </div>
+
+            <p className="text-[11px] opacity-90">{prResult.message || prResult.error}</p>
+
+            {prResult.branch && (
+              <div className="text-[10px] text-zinc-400 flex items-center gap-3 flex-wrap">
+                <span>
+                  Branch Criada: <strong className="text-zinc-200 font-mono">{prResult.branch}</strong>
+                </span>
+                <span>
+                  Arquivos Modificados: <strong className="text-emerald-400 font-mono">{prResult.patchedFiles?.join(', ') || 'Manifestos de Código'}</strong>
+                </span>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="space-y-2.5">
           {report.vulnerabilities.map((vuln) => (
@@ -533,7 +674,24 @@ export const AuditDashboard: React.FC<AuditDashboardProps> = ({
                 )}
               </div>
 
-              <div className="shrink-0 flex items-center gap-2">
+              <div className="shrink-0 flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => handleApplyPullRequest(vuln.id)}
+                  disabled={isCreatingPr && activeVulnForPr === vuln.id}
+                  className="px-3 py-1.5 text-[11px] font-mono font-bold rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white border border-emerald-500 flex items-center gap-1.5 transition-colors whitespace-nowrap shadow-xs cursor-pointer"
+                >
+                  {isCreatingPr && activeVulnForPr === vuln.id ? (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin text-white" />
+                      <span>Criando PR...</span>
+                    </>
+                  ) : (
+                    <>
+                      <GitPullRequest className="h-3 w-3 text-emerald-200" />
+                      <span>Aplicar Correção via Pull Request</span>
+                    </>
+                  )}
+                </button>
                 <button
                   onClick={() => {
                     onSelectVulnerabilityForReview(vuln.id);
@@ -541,7 +699,7 @@ export const AuditDashboard: React.FC<AuditDashboardProps> = ({
                   }}
                   className="px-3 py-1.5 text-[11px] font-mono font-semibold rounded bg-zinc-800 hover:bg-zinc-700 text-emerald-400 border border-zinc-700 transition-colors whitespace-nowrap"
                 >
-                  Inspecionar Code Review & Patch
+                  Code Review & Patch
                 </button>
               </div>
             </div>
@@ -582,6 +740,64 @@ export const AuditDashboard: React.FC<AuditDashboardProps> = ({
         onClose={() => setIsBadgeModalOpen(false)}
         report={report}
       />
+
+      {/* GitHub Token Modal for 1-Click PR */}
+      {showTokenModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4">
+          <div className="w-full max-w-lg rounded-lg border border-zinc-800 bg-zinc-900 p-6 space-y-4 shadow-2xl font-mono text-xs">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Lock className="h-4 w-4 text-emerald-400" />
+                <h3 className="text-sm font-bold uppercase text-white">GitHub Token (PAT) Necessário</h3>
+              </div>
+              <button
+                onClick={() => setShowTokenModal(false)}
+                className="text-zinc-500 hover:text-white text-base font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-zinc-300 font-sans leading-relaxed">
+              Para abrir o Pull Request de remediação diretamente no repositório <strong className="text-white">{report.targetRepo?.fullName}</strong>, forneça um Personal Access Token (PAT) com a permissão <code className="text-emerald-400 bg-zinc-950 px-1 py-0.5 rounded">repo</code>.
+            </p>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] text-zinc-400 uppercase font-bold">Personal Access Token (ghp_...):</label>
+              <input
+                type="password"
+                value={githubTokenInput}
+                onChange={(e) => setGithubTokenInput(e.target.value)}
+                placeholder="ghp_1234567890abcdefghijklmnopqrstuvwxyz"
+                className="w-full px-3 py-2 rounded bg-zinc-950 border border-zinc-700 text-white font-mono text-xs focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                onClick={() => {
+                  setShowTokenModal(false);
+                  handleApplyPullRequest(activeVulnForPr !== 'ALL' ? activeVulnForPr || undefined : undefined, 'SIMULATED');
+                }}
+                className="px-3.5 py-1.5 rounded border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold cursor-pointer"
+              >
+                Continuar sem Token (Simular PR)
+              </button>
+              <button
+                onClick={() => {
+                  setShowTokenModal(false);
+                  handleApplyPullRequest(activeVulnForPr !== 'ALL' ? activeVulnForPr || undefined : undefined, githubTokenInput);
+                }}
+                disabled={!githubTokenInput.trim()}
+                className="px-4 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold flex items-center gap-2 cursor-pointer"
+              >
+                <GitPullRequest className="h-3.5 w-3.5" />
+                <span>Criar PR com Token Real</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

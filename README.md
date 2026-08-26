@@ -29,9 +29,15 @@ Projetado para inspecionar repositórios em **Rust**, **TypeScript/Node.js**, **
   - **Node.js / TypeScript (`package.json`)**: Detecção de CVEs e vulnerabilidades npm.
   - **Go (`go.mod`)**: Identificação de módulos defasados e vulnerabilidades no ecossistema Go.
   - **Python (`requirements.txt` / `pyproject.toml`)**: Varredura contra falhas em pacotes PyPI.
+- **Remediação Automática com 1 Clique (GitHub Pull Requests)**:
+  - Criação automatizada de branch (`rustshield-patch-xxxxxx`) e abertura de **Pull Request oficial no GitHub** com os patches corretivos de manifesto aplicados.
+  - Remediação global em lote ou pontual por vulnerabilidade diretamente na tabela do dashboard.
+  - Suporte a GitHub Personal Access Token (PAT) com permissão `repo` e modo simulação.
+- **Motor de Severidade Ponderada CVSS v3.1 / CVSS v4.0**:
+  - Cálculo de Score Geral calibrado e realista, sem alarmismo injustificado (repositórios sem falhas críticas pontuam na faixa 65–75/100 para atualizações e até 95+ para código limpo).
 - **Painel Visual Categorizado de Dependências**:
   - Cálculo de risco e **CVSS 4.0** com barras visuais de gravidade.
-  - Links diretos para os advisories oficiais no **OSV.dev** e **GitHub Advisory Database**.
+  - Links diretos para os advisories oficiais no **OSV.dev** (com proxy batch `/api/audit/osv-batch`) e **GitHub Advisory Database**.
   - Detecção de defasagem de versão (*Major Behind*, *Deprecated*, *EOL*) com comandos de correção prontos para cópia (`cargo update`, `npm install`, `go get -u`).
 - **Alerta Imediato de Supply Chain**: Banner visual em destaque na interface sempre que dependências com risco Crítico ou Alto forem encontradas.
 

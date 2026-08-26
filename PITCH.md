@@ -20,10 +20,12 @@
 O **RustShield Quantum** unifica auditoria de código, segurança de supply chain, inteligência artificial generativa e prontidão pós-quântica em uma **plataforma única, automatizada e orientada a CI/CD**:
 
 - **Auditoria de Supply Chain em Tempo Real**: Conexão nativa com **OSV.dev**, **RustSec** e **GitHub Advisory Database** para varredura instantânea de `Cargo.toml`, `package.json`, `go.mod` e `requirements.txt`.
+- **1-Click Pull Request Auto-Remediation**: Capacidade exclusiva de abrir Pull Requests oficiais no GitHub do cliente com branches isoladas e patches de segurança aplicados automaticamente nos arquivos de manifesto.
 - **Motor de Prontidão Pós-Quântica (NIST PQC)**: Avaliação automatizada de conformidade com os novos padrões **NIST FIPS 203 (ML-KEM/Kyber)** e **FIPS 204 (ML-DSA/Dilithium)**.
+- **Score Calibrado sem Alarmismo**: Algoritmo ponderado por **CVSS v3.1 / CVSS v4.0** que elimina falsos alarmes e reflete a gravidade operacional com precisão pericial.
 - **Teoria das Ondas & Previsão de 0-Day**: Modelagem matemática de entropia espectral para identificar ressonâncias de risco antes que se tornem incidentes.
 - **Orquestração BPMN 2.0 & Automação CI/CD**: Gatilhos via GitHub Webhooks com validação HMAC SHA-256 e streaming ao vivo (SSE).
-- **Remediação Instantânea com IA**: Geração de patches idiomáticos (Antes vs. Depois) com cálculo de esforço de engenharia e exportação para PDF e SARIF.
+- **Remediação Instantânea com IA em Português**: Geração de pareceres, roadmap e patches idiomáticos com cálculo de esforço de engenharia e exportação para PDF e SARIF.
 
 ---
 
@@ -32,6 +34,7 @@ O **RustShield Quantum** unifica auditoria de código, segurança de supply chai
 | Funcionalidade | Ferramentas Tradicionais (Snyk, SonarQube) | RustShield Quantum (Q-Audit) |
 | :--- | :---: | :---: |
 | **Auditoria Pós-Quântica (PQC)** | ❌ Inexistente | ✅ **Nativa (NIST FIPS 203/204)** |
+| **Remediação 1-Click via GitHub PR** | ⚠️ Requer bots caros/complexos | ✅ **Nativa com Branches & Patches** |
 | **Modelagem Espectral de 0-Day** | ❌ Não possui | ✅ **Teoria das Ondas & Soliton** |
 | **Supply Chain Polyglot em Tempo Real** | ⚠️ Requer agentes pesados | ✅ **Leve, Instantâneo (OSV/RustSec)** |
 | **Smart Contracts Solana / Anchor** | ❌ Suporte muito limitado | ✅ **Especializado (Account Validation)** |
