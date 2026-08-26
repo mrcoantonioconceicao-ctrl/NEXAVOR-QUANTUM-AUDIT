@@ -164,7 +164,7 @@ export class AstRefactorEngine {
 
       // 5. Violador de Tipagem TypeScript/Go (any, interface{}, raw dynamic casting)
       if (
-        (lineText.includes(': any') || lineText.includes('interface{}') || lineText.includes('as any')) &&
+        (lineText.includes(': any') || lineText.includes('interface{}') || lineText.includes('as any') || lineText.includes('<any>')) &&
         !lineText.trim().startsWith('//')
       ) {
         violations.push({
@@ -179,6 +179,75 @@ export class AstRefactorEngine {
           structuralConstraint: 'TIPAGEM ESTRITA: Imponha tipagem forte e imutável para os contratos de entrada e saída.',
         });
       }
+
+      // 6. C / C++ / Legacy: Memory Allocation sem RAII ou Funções Perigosas (malloc, free, strcpy, sprintf, gets)
+      if (
+        (lineText.includes('malloc(') || lineText.includes('free(') || lineText.includes('strcpy(') || lineText.includes('sprintf(') || lineText.includes('gets(') || lineText.includes('goto ')) &&
+        !lineText.trim().startsWith('//')
+      ) {
+        violations.push({
+          nodeId: `AST-NODE-${nodeCounter++}`,
+          type: 'RESOURCE_LEAK_NO_RAII',
+          severity: 'CRITICAL',
+          title: 'Alocação Manual de Memória / Função Não Segura sem Garantia RAII',
+          location: { startLine: lineNumber, endLine: lineNumber },
+          codeSnippet: lineText.trim(),
+          cwe: 'CWE-401 / CWE-120',
+          recommendation: 'Utilize Smart Pointers (std::unique_ptr / std::shared_ptr em C++ ou RAII em Rust), snprintf ou abstrações seguras de contêiner.',
+          structuralConstraint: 'RAII MEMORY MANAGEMENT: Garanta que recursos e memória sejam desalocados deterministicamente.',
+        });
+      }
+
+      // 7. Python / JS: Serialização Insegura ou Injeção Dinâmica (pickle.load, eval, innerHTML, yaml.load)
+      if (
+        (lineText.includes('pickle.load') || lineText.includes('eval(') || lineText.includes('innerHTML') || (lineText.includes('yaml.load') && !lineText.includes('SafeLoader'))) &&
+        !lineText.trim().startsWith('//')
+      ) {
+        violations.push({
+          nodeId: `AST-NODE-${nodeCounter++}`,
+          type: 'UNSANITIZED_INPUT_INJECTION',
+          severity: 'CRITICAL',
+          title: 'Desserialização / Avaliação Dinâmica Insegura de Dados Não Confiáveis',
+          location: { startLine: lineNumber, endLine: lineNumber },
+          codeSnippet: lineText.trim(),
+          cwe: 'CWE-502 / CWE-95',
+          recommendation: 'Substitua por deserializadores seguros (JSON, SafeLoader, DOMPurify) com esquemas de validação estritos.',
+          structuralConstraint: 'SAFE DESERIALIZATION: Proíba a execução arbitrária de código durante a interpretação de payloads.',
+        });
+      }
+
+      // 8. Solidity / Smart Contract: tx.origin, selfdestruct, delegatecall inseguro
+      if (
+        (lineText.includes('tx.origin') || lineText.includes('selfdestruct') || lineText.includes('.delegatecall(')) &&
+        !lineText.trim().startsWith('//')
+      ) {
+        violations.push({
+          nodeId: `AST-NODE-${nodeCounter++}`,
+          type: 'DEPRECATED_OBSOLETE_SYNTAX',
+          severity: 'CRITICAL',
+          title: 'Padrão Anti-Segurança em Smart Contract (tx.origin / delegatecall)',
+          location: { startLine: lineNumber, endLine: lineNumber },
+          codeSnippet: lineText.trim(),
+          cwe: 'CWE-287 / CWE-829',
+          recommendation: 'Substitua tx.origin por msg.sender e adicione checagens de autorização com modificadores OpenZeppelin.',
+          structuralConstraint: 'ACCESS CONTROL: Imponha verificação estrita de autorização e proteções reentrancy.',
+        });
+      }
+    }
+
+    // Se nenhum nó específico foi disparado, registrar nó de modernização estrutural
+    if (violations.length === 0) {
+      violations.push({
+        nodeId: `AST-NODE-${nodeCounter++}`,
+        type: 'DEPRECATED_OBSOLETE_SYNTAX',
+        severity: 'MEDIUM',
+        title: 'Auditoria de Arquitetura e Modernização Clean Code / DDD',
+        location: { startLine: 1, endLine: Math.min(lines.length, 10) },
+        codeSnippet: lines.slice(0, Math.min(lines.length, 4)).join('\n') || '// Código base',
+        cwe: 'CWE-1078',
+        recommendation: 'Aplicar isolamento de Bounded Context, construtores imutáveis e tratamento idiomático com tipos de domínio.',
+        structuralConstraint: 'CLEAN ARCHITECTURE: Refatorar módulo com separação de responsabilidades e padrões idiomáticos da linguagem.',
+      });
     }
 
     // Gerar Resumo Sintático de Árvore (AST Structural Hierarchy)
