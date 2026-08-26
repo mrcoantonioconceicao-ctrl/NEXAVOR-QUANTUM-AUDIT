@@ -11,6 +11,7 @@ import { ArchitectureDocsModal } from './components/ArchitectureDocsModal.tsx';
 import { ScaleClusterDashboard } from './components/ScaleClusterDashboard.tsx';
 import { AuditDiffComparator } from './components/AuditDiffComparator.tsx';
 import { WebhookConfigView } from './components/WebhookConfigView.tsx';
+import { AstRefactorStudio } from './components/AstRefactorStudio.tsx';
 import { SecurityAuditReport, BpmnStep } from './domain/types.ts';
 
 import { INITIAL_BPMN_STEPS, advanceBpmnStep } from './domain/bpmnWorkflow.ts';
@@ -270,6 +271,13 @@ export default function App() {
                 />
               )}
 
+              {activeTab === 'astRefactor' && (
+                <AstRefactorStudio
+                  report={report}
+                  onShowNotification={showNotification}
+                />
+              )}
+
               {activeTab === 'tests' && (
                 <SecurityTestSuite
                   report={report}
@@ -290,6 +298,19 @@ export default function App() {
               )}
             </div>
 
+          ) : activeTab === 'astRefactor' ? (
+            <AstRefactorStudio
+              report={null}
+              onShowNotification={showNotification}
+            />
+          ) : activeTab === 'webhooks' ? (
+            <WebhookConfigView
+              currentRepoUrl={undefined}
+              onTriggerAuditFromWebhook={(url) => {
+                handleStartAuditWithUrl(url, undefined, 'FULL_REPO');
+              }}
+              showNotification={showNotification}
+            />
           ) : (
             <div className="max-w-4xl mx-auto p-12 text-center space-y-4">
               <div className="inline-flex p-3 rounded-full bg-zinc-900 border border-zinc-800 text-emerald-400">

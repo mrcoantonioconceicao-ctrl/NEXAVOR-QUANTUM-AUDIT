@@ -18,47 +18,47 @@ export function generateSecurityTestSuite(vulnerabilities: RustVulnerability[]):
       status: hasUnsafe ? 'FAILED' : 'PASSED',
       inputPayload: 'miri / asan_harness --check-bounds --strict-provenance --detect-leaks=1',
       executionLog: hasUnsafe
-        ? 'error: Undefined Behavior: uninitialized memory access / buffer bounds violation at offset [0x7ffe..]\n = help: this indicates an exploitable memory safety violation.'
-        : 'All memory boundaries verified safe. 0 leaks, 0 undefined behaviors detected.',
+        ? 'ERRO: Comportamento Indefinido (UB) detectado: Acesso a memória desinicializada / Violação de limites de buffer em offset [0x7ffe..]\n = ajuda: Esta falha indica uma violação de segurança de memória explorável.'
+        : 'Todos os limites de memória verificados e seguros. 0 vazamentos, 0 comportamentos indefinidos detectados.',
       mitigationVerification: 'Inicialização segura, bounds checking estrito e tipos de contêineres gerenciados com RAII.',
     },
     {
       id: 'TEST-RCE-DESER-02',
-      name: 'Untrusted Deserialization & RCE Gadget Chain Inspector',
+      name: 'Inspeção de Desserialização Não Confiável & RCE Gadget Chains',
       category: 'DESERIALIZATION',
       description: 'Testa payloads de desserialização não confiável (Python pickle, Java ObjectInputStream, YAML tags, Node.js serialized) para detectar RCE.',
       severity: 'CRITICAL',
       status: hasDeser ? 'FAILED' : 'PASSED',
       inputPayload: 'deser_fuzz_probe --target-payload=__reduce___rce_vector --gadget-scan',
       executionLog: hasDeser
-        ? 'CRITICAL ALERT: Deserialization executed unauthorized OS process spawn (os.system / Runtime.exec).\nArbitrary code execution confirmed on worker node.'
-        : 'PASS: Deserializer strictly enforces static typed JSON / Protocol Buffers schema without polymorphic gadgets.',
+        ? 'ALERTA CRÍTICO: Desserialização executou criação não autorizada de processo do sistema operacional (os.system / Runtime.exec).\nExecução remota de código (RCE) confirmada no nó de execução.'
+        : 'APROVADO: Desserializador impõe estritamente esquemas tipados estáticos JSON / Protocol Buffers sem gadgets polimórficos.',
       mitigationVerification: 'Substituição de serializadores reflexivos por parsers tipados (JSON/Protobuf/SafeLoader).',
     },
     {
       id: 'TEST-INJECTION-03',
-      name: 'Command Injection & SQL Parameterization Verifier',
+      name: 'Verificador de Injeção de Comandos & Parametrização SQL',
       category: 'INJECTION',
       description: 'Dispara mutações com payloads SQLi clássicos (`\' OR 1=1 --`) e Command Injection (`$(id); /bin/sh`) contra todas as rotas de entrada.',
       severity: 'HIGH',
       status: hasInjection ? 'FAILED' : 'PASSED',
       inputPayload: 'sqlmap_sec_scan --risk=3 --level=5 / cmd_injection_fuzz',
       executionLog: hasInjection
-        ? 'VULNERABILITY CONFIRMED: Raw SQL / Shell concatenation identified in query engine.\nPayload injected into subprocess pipeline.'
-        : 'PASS: All queries use prepared statements / execFile without shell interpretation.',
+        ? 'VULNERABILIDADE CONFIRMADA: Concatenação direta de SQL / Shell identificada no motor de consultas.\nPayload injetado com sucesso no pipeline de subprocesso.'
+        : 'APROVADO: Todas as consultas utilizam prepared statements / execFile sem interpretação de shell.',
       mitigationVerification: 'Uso obrigatório de prepared statements parametrizados e execução de binários com argumentos estruturados.',
     },
     {
       id: 'TEST-RACE-04',
-      name: 'ThreadSanitizer (TSan) & Goroutine Race Verifier',
+      name: 'ThreadSanitizer (TSan) & Verificador de Race Conditions em Goroutines',
       category: 'CONCURRENCY_RACE',
       description: 'Testa permutações de escalonamento preemptivo de threads e goroutines para detectar Data Races em memória compartilhada sob 10.000 CCU.',
       severity: 'CRITICAL',
       status: hasRace ? 'FAILED' : 'PASSED',
       inputPayload: 'go test -race / RUSTFLAGS="-Zsanitizer=thread" cargo test',
       executionLog: hasRace
-        ? 'WARNING: ThreadSanitizer / Go Race Detector: data race detected on shared map/memory.\nConcurrent writes without synchronization lock.'
-        : 'ThreadSanitizer passed. No concurrent data races observed across 10,000 simulated clients.',
+        ? 'AVISO: ThreadSanitizer / Go Race Detector: corrida de dados (data race) detectada em memória/mapa compartilhado.\nEscritas concorrentes sem bloqueio de sincronização (mutex).'
+        : 'ThreadSanitizer aprovado. Nenhuma corrida de dados concorrente observada em 10.000 clientes simulados.',
       mitigationVerification: 'Encapsulamento de estado em Mutex/RwLock, atomics ou canais assíncronos isolados.',
     },
     {
@@ -88,13 +88,13 @@ export function generateSecurityTestSuite(vulnerabilities: RustVulnerability[]):
   if (hasWeb3) {
     baseTests.push({
       id: 'TEST-WEB3-07',
-      name: 'Slither & Foundry Reentrancy / Flashloan Attack Simulation',
+      name: 'Simulação de Ataque de Reentrância e Flashloan via Slither & Foundry',
       category: 'REENTRANCY',
       description: 'Simula chamadas aninhadas na função de fallback para drenagem de liquidez de smart contracts (SWC-107).',
       severity: 'CRITICAL',
       status: 'FAILED',
       inputPayload: 'slither . --detect reentrancy-eth,tx-origin / forge test --fuzz-runs 10000',
-      executionLog: 'REENTRANCY DETECTED: State update occurs after external call.msg.sender.call{value: amount}("").\nLiquidity drained in simulated flashloan transaction.',
+      executionLog: 'REENTRÂNCIA DETECTADA: Atualização de estado ocorre após chamada externa `.msg.sender.call{value: amount}("")`.\nLiquidez drenada com sucesso em transação de flashloan simulada.',
       mitigationVerification: 'Implementação estrita do padrão Checks-Effects-Interactions e ReentrancyGuard da OpenZeppelin.',
     });
   }

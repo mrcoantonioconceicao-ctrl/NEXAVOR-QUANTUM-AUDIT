@@ -19,6 +19,7 @@ const TAB_TITLES: Record<TabType, { title: string; subtitle: string }> = {
   waves: { title: 'Teoria das Ondas', subtitle: 'Análise Espectral Soliton & Zero-Days' },
   bpmn: { title: 'BPMN Pipeline', subtitle: 'Fluxo Formal de Auditoria' },
   review: { title: 'Code Review Workbench', subtitle: 'Remediação e Diff Estático' },
+  astRefactor: { title: 'Refatoração Legada (AST + IA)', subtitle: 'Ponte Determinística AST + Raciocínio Gemini IA' },
   tests: { title: 'Testes de Segurança', subtitle: 'Suíte Miri e Validação Dinâmica' },
   architecture: { title: 'Arquitetura & DDD', subtitle: 'Bounded Contexts e SOA' },
   webhooks: { title: 'Webhooks & CI/CD', subtitle: 'Gatilhos Automáticos e Auditoria em Tempo Real' },

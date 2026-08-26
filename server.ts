@@ -1,7 +1,7 @@
 import express from 'express';
 import path from 'path';
 import dotenv from 'dotenv';
-import { handleAnalyzeRepo, handleFetchGitHub, handleGetSystemMetrics, handleOsvBatchProxy, handleCreateGitHubPullRequest } from './server/routes.js';
+import { handleAnalyzeRepo, handleFetchGitHub, handleGetSystemMetrics, handleOsvBatchProxy, handleCreateGitHubPullRequest, handleSuggestRustPatch, handleAstRefactor, handleCreateRefactorPullRequest } from './server/routes.js';
 import {
   handleGetWebhookConfigs,
   handleSaveWebhookConfig,
@@ -38,9 +38,12 @@ app.get('/api/metrics', handleGetSystemMetrics);
 
 // Real API Routes
 app.post('/api/audit/analyze', handleAnalyzeRepo);
+app.post('/api/audit/suggest-rust-patch', handleSuggestRustPatch);
+app.post('/api/audit/ast-refactor', handleAstRefactor);
 app.post('/api/audit/osv-batch', handleOsvBatchProxy);
 app.get('/api/github/repo', handleFetchGitHub);
 app.post('/api/github/create-pr', handleCreateGitHubPullRequest);
+app.post('/api/github/refactor-pr', handleCreateRefactorPullRequest);
 
 // Webhook Configuration & Real-time Integration Routes
 app.get('/api/webhooks/configs', handleGetWebhookConfigs);

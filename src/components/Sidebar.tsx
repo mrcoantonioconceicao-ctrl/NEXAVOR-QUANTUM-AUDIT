@@ -17,6 +17,7 @@ import {
   X,
   Radio,
   Webhook,
+  Wand2,
 } from 'lucide-react';
 import { SecurityAuditReport } from '../domain/types.ts';
 
@@ -27,6 +28,7 @@ export type TabType =
   | 'waves'
   | 'bpmn'
   | 'review'
+  | 'astRefactor'
   | 'tests'
   | 'architecture'
   | 'webhooks';
@@ -111,6 +113,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: FileCode2,
       badge: vulnTotal > 0 ? `${vulnTotal}` : undefined,
       badgeColor: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+    },
+    {
+      id: 'astRefactor' as TabType,
+      label: 'Refatoração AST',
+      description: 'Análise AST + Gemini IA',
+      icon: Wand2,
+      badge: 'AST + IA',
+      badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
     },
     {
       id: 'tests' as TabType,
