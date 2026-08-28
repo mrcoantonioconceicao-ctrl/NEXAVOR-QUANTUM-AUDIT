@@ -1,0 +1,6 @@
+{
+  "name": "RustShield Quantum - Legacy Code Security Auditor",
+  "description": "Enterprise-grade Rust legacy code security auditor and zero-day wave-theory analyzer with GitHub repository ingestion, post-quantum crypto verification, and executive PDF reporting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
