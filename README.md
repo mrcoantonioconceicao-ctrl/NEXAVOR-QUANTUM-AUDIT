@@ -93,13 +93,17 @@ A plataforma combina análise determinística de código-fonte via **AST (Abstra
   - **FN-DSA (Falcon)**: Assinaturas digitais de alta performance e tamanho compacto.
 - **Auditoria de Tempo Constante (`ConstantTimeEq`)**: Detecção e mitigação de vulnerabilidades a ataques de canal lateral (*Timing Attacks*) em comparações de hashes e chaves.
 
-### 5. 🪄 Studio de Refatoração de Código Legado (AST + Gemini IA)
-- **Motor Sintático AST**: Identificação rigorosa de nós perigosos (`unsafe`, ponteiros brutos `*mut`, desempacotamento sem tratamento `.unwrap()`, variáveis globais `static mut` e injeções).
-- **Bounded Context Gemini**: A inteligência artificial opera sob regras determinísticas restritas, eliminando alucinações e garantindo que apenas patches compiláveis e idiomáticos sejam gerados.
-- **1-Click Pull Request com Commit Físico**:
-  - Criação de branch isolada (`rustshield-legacy-refactor-[timestamp]`).
-  - Commit do arquivo modificado com codificação Base64 sanitizada via GitHub REST API.
-  - Abertura de PR no repositório com parecer técnico executivo e métricas de esforço economizado (~4.5 horas/arquivo).
+### 5. 🪄 Studio de Refatoração de Código Legado & Motor AST Autônomo
+- **Regras Estendidas de Análise Sintática (AST)**:
+  - **Rust (Memory & Concurrency Safety)**: Detecção obriga de blocos `unsafe` ausentes de anotação de garantia (`// SAFETY: ...`), chamadas a `.unwrap()` / `.expect()` em caminhos de execução produtivos (exigindo substituição por `Result<T, E>`), e mutabilidade global `static mut` sem abstrações de concorrência atômica.
+  - **TypeScript / Node.js / Web**: Identificação de contaminação de protótipo (*Prototypal Pollution* via `__proto__` e `constructor.prototype`), vulnerabilidades *ReDoS* em expressões regulares com potenciais de backtracking catastrófico e desserialização perigosa.
+  - **Geral (Secrets & Ciphers)**: Varredura de segredos hardcoded (chaves privadas, JWT secrets, tokens AWS) e uso de cifras simétricas sem IV/Salt adequado (ex: ECB/CBC sem padding seguro).
+- **Refatoração Poliglota Limpa**:
+  - Reconhecimento automático de stack (TypeScript, Rust, Node.js, PHP, C/C++) com reescrita limpa, compilável e estritamente idiomática, sem contaminação cruzada de conceitos entre linguagens.
+- **Orquestração de Pull Request com Commit Físico**:
+  - Criação automatizada de branch isolada (`rustshield-legacy-refactor-[timestamp]`).
+  - Estruturação do commit físico do arquivo refatorado limpo codificado em Base64 sanitizado via GitHub REST API.
+  - Abertura de PR com parecer técnico executivo "Antes vs. Depois", mapeamento de conformidade GRC (SOC 2, ISO 27001, NIST SP 800-218, NIST PQC FIPS 203/204/205) e métrica de esforço economizado (~3 a 4.5 horas por arquivo).
 
 ### 6. 🔒 Trilha de Auditoria Imutável (Ledger Forense) & SIEM
 - **Hash Chain SHA-256**: Cada ação (varredura, patch, aprovação, exportação) gera um bloco encadeado criptograficamente com o hash do bloco anterior, impedindo qualquer modificação retroativa.
