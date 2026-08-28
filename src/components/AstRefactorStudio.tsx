@@ -174,13 +174,25 @@ export const AstRefactorStudio: React.FC<AstRefactorStudioProps> = ({
 
   // GitHub PR States
   const [githubToken, setGithubToken] = useState<string>(() => getStoredGitHubToken());
+  const [customRepoUrl, setCustomRepoUrl] = useState<string>(() => {
+    return report?.targetRepo?.url || (report?.targetRepo?.fullName ? `https://github.com/${report.targetRepo.fullName}` : 'https://github.com/mrcoantonioconceicao-ctrl/NEXAVOR-QUANTUM-AUDIT');
+  });
   const [isOpeningPr, setIsOpeningPr] = useState<boolean>(false);
   const [prError, setPrError] = useState<string | null>(null);
 
   const handleTokenChange = (token: string) => {
-    setGithubToken(token);
-    setStoredGitHubToken(token);
+    const clean = token.trim();
+    setGithubToken(clean);
+    setStoredGitHubToken(clean);
   };
+
+  useEffect(() => {
+    if (report?.targetRepo?.url) {
+      setCustomRepoUrl(report.targetRepo.url);
+    } else if (report?.targetRepo?.fullName) {
+      setCustomRepoUrl(`https://github.com/${report.targetRepo.fullName}`);
+    }
+  }, [report?.targetRepo?.url, report?.targetRepo?.fullName]);
   const [prResult, setPrResult] = useState<{
     prUrl: string;
     prNumber: number;
@@ -365,20 +377,27 @@ export const AstRefactorStudio: React.FC<AstRefactorStudioProps> = ({
     setPrError(null);
     setPrResult(null);
 
-    const targetRepoUrl = report?.targetRepo?.url || 'https://github.com/mrcoantonioconceicao/nexavor_1.0';
+    const tokenToSend = (githubToken || getStoredGitHubToken()).trim();
+    if (!tokenToSend) {
+      setPrError('Por favor, insira o seu GitHub Personal Access Token (PAT) no campo abaixo para autorizar o Pull Request.');
+      setIsOpeningPr(false);
+      return;
+    }
+
+    const targetRepo = (customRepoUrl || report?.targetRepo?.url || report?.targetRepo?.fullName || 'https://github.com/mrcoantonioconceicao-ctrl/NEXAVOR-QUANTUM-AUDIT').trim();
 
     try {
       const response = await fetch('/api/github/refactor-pr', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          repoUrl: targetRepoUrl,
+          repoUrl: targetRepo,
           filePath: selectedFilePath,
           refactoredContent: refactorResult.refactoredContent,
           astFixes: refactorResult.astFixesApplied,
           technicalRationale: refactorResult.technicalRationale,
           engineeringHoursSaved: refactorResult.engineeringHoursSaved,
-          githubToken,
+          githubToken: tokenToSend,
         }),
       });
 
@@ -804,8 +823,8 @@ export const AstRefactorStudio: React.FC<AstRefactorStudioProps> = ({
               </button>
             </div>
 
-            {/* Personal Access Token Input */}
-            <div className="pt-3 border-t border-zinc-800/80 p-3 rounded bg-purple-950/20 border border-purple-500/30 space-y-2">
+            {/* Personal Access Token & Target Repository Input */}
+            <div className="pt-3 border-t border-zinc-800/80 p-3.5 rounded bg-purple-950/20 border border-purple-500/30 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                 <div className="flex items-center gap-2">
                   <Key className="h-4 w-4 text-purple-400" />
@@ -824,17 +843,32 @@ export const AstRefactorStudio: React.FC<AstRefactorStudioProps> = ({
                 )}
               </div>
 
-              <div className="flex flex-col sm:flex-row items-center gap-2">
-                <input
-                  type="password"
-                  value={githubToken}
-                  onChange={(e) => handleTokenChange(e.target.value)}
-                  placeholder="Cole aqui seu token: ghp_xxxxxxxxxxxxxxxxxxxx"
-                  className="w-full bg-zinc-950 border border-purple-500/50 focus:border-purple-400 rounded px-3 py-2 font-mono text-xs text-white outline-none shadow-inner"
-                />
-                <span className="text-[10px] font-mono text-zinc-400 shrink-0">
-                  Repo Alvo: <strong className="text-purple-300">{report?.targetRepo?.fullName || 'mrcoantonioconceicao-ctrl/plataforma-nexa'}</strong>
-                </span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono uppercase text-zinc-400 block font-semibold">
+                    GitHub Personal Access Token (PAT):
+                  </label>
+                  <input
+                    type="password"
+                    value={githubToken}
+                    onChange={(e) => handleTokenChange(e.target.value)}
+                    placeholder="Cole aqui seu token: ghp_xxxxxxxxxxxxxxxxxxxx"
+                    className="w-full bg-zinc-950 border border-purple-500/50 focus:border-purple-400 rounded px-3 py-2 font-mono text-xs text-white outline-none shadow-inner"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono uppercase text-zinc-400 block font-semibold">
+                    Repositório Alvo do Pull Request:
+                  </label>
+                  <input
+                    type="text"
+                    value={customRepoUrl}
+                    onChange={(e) => setCustomRepoUrl(e.target.value)}
+                    placeholder="https://github.com/mrcoantonioconceicao-ctrl/NEXAVOR-QUANTUM-AUDIT"
+                    className="w-full bg-zinc-950 border border-zinc-700 focus:border-purple-400 rounded px-3 py-2 font-mono text-xs text-white outline-none shadow-inner"
+                  />
+                </div>
               </div>
             </div>
 

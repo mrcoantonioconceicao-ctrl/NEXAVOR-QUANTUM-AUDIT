@@ -85,9 +85,14 @@ export const DependencyVulnerabilitiesPanel: React.FC<DependencyVulnerabilitiesP
 
     const uniquePatches = Array.from(uniquePatchesMap.values());
 
+    const effectiveToken = (tokenOverride !== undefined ? tokenOverride : (githubTokenInput || getStoredGitHubToken())).trim();
+
+    const targetUrl = report.targetRepo.url || 
+      (report.targetRepo.fullName ? `https://github.com/${report.targetRepo.fullName}` : `https://github.com/${report.targetRepo.owner}/${report.targetRepo.name}`);
+
     const result = await createGitHubPullRequest({
-      repoUrl: report.targetRepo.url || `https://github.com/${report.targetRepo.owner}/${report.targetRepo.name}`,
-      githubToken: tokenOverride !== undefined ? tokenOverride : githubTokenInput,
+      repoUrl: targetUrl,
+      githubToken: effectiveToken,
       patches: uniquePatches,
     });
 

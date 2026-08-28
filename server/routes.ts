@@ -237,65 +237,98 @@ export function parseGitHubUrl(inputUrl: string): ParsedGitHubUrl | null {
 
 export async function resolveGitHubRepo(owner: string, repo: string, headers: Record<string, string>) {
   // 1. Direct fetch attempt
-  const directRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers });
-  if (directRes.ok) {
-    const data = await directRes.json();
-    return { owner: data.owner.login as string, repo: data.name as string, repoData: data, errorRes: null };
+  try {
+    const directRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers });
+    if (directRes.ok) {
+      const data = await directRes.json();
+      return { owner: data.owner.login as string, repo: data.name as string, repoData: data, errorRes: null };
+    }
+  } catch (e) {
+    console.warn('[Smart GitHub Resolver] Direct repo fetch error:', e);
   }
 
-  // 2. If 404, query authenticated user's repos using token if available
-  if (directRes.status === 404) {
-    const cleanInputRepo = repo.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-    const cleanInputOwner = owner.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+  // 2. Query authenticated user info and repos if token is provided
+  const cleanInputRepo = repo.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+  const cleanInputOwner = owner.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
 
-    try {
-      const userReposRes = await fetch('https://api.github.com/user/repos?per_page=100', { headers });
-      if (userReposRes.ok) {
-        const userRepos = await userReposRes.json();
-        if (Array.isArray(userRepos)) {
-          const match =
-            userRepos.find((r: any) => {
-              const rRepoClean = (r.name || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-              const rOwnerClean = (r.owner?.login || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-              return rRepoClean === cleanInputRepo && (rOwnerClean.includes(cleanInputOwner) || cleanInputOwner.includes(rOwnerClean));
-            }) ||
-            userRepos.find((r: any) => {
-              const rRepoClean = (r.name || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-              return rRepoClean === cleanInputRepo;
-            });
+  try {
+    // 2.1 Check authenticated user profile
+    const authUserRes = await fetch('https://api.github.com/user', { headers });
+    if (authUserRes.ok) {
+      const authUser = await authUserRes.json();
+      const authLogin = authUser.login as string;
 
-          if (match) {
-            console.log(`[Smart GitHub Resolver] Auto-resolved '${owner}/${repo}' -> '${match.owner.login}/${match.name}'`);
-            return { owner: match.owner.login as string, repo: match.name as string, repoData: match, errorRes: null };
+      // If owner was different, try direct fetch on authUser login
+      if (authLogin && authLogin.toLowerCase() !== owner.toLowerCase()) {
+        try {
+          const authRepoRes = await fetch(`https://api.github.com/repos/${authLogin}/${repo}`, { headers });
+          if (authRepoRes.ok) {
+            const data = await authRepoRes.json();
+            console.log(`[Smart GitHub Resolver] Auto-resolved repo under authenticated user '${authLogin}/${repo}'`);
+            return { owner: data.owner.login as string, repo: data.name as string, repoData: data, errorRes: null };
           }
-        }
+        } catch {}
       }
-    } catch (e) {
-      console.warn('[Smart GitHub Resolver] Token user repos check failed:', e);
     }
 
-    // 3. Try public user repos search
-    try {
-      const pubReposRes = await fetch(`https://api.github.com/users/${encodeURIComponent(owner)}/repos?per_page=100`, { headers });
-      if (pubReposRes.ok) {
-        const pubRepos = await pubReposRes.json();
-        if (Array.isArray(pubRepos)) {
-          const match = pubRepos.find((r: any) => {
-            const rClean = (r.name || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-            return rClean === cleanInputRepo || rClean.includes(cleanInputRepo);
+    // 2.2 List user repositories
+    const userReposRes = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated', { headers });
+    if (userReposRes.ok) {
+      const userRepos = await userReposRes.json();
+      if (Array.isArray(userRepos) && userRepos.length > 0) {
+        const match =
+          userRepos.find((r: any) => {
+            const rRepoClean = (r.name || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            const rOwnerClean = (r.owner?.login || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            return rRepoClean === cleanInputRepo && (rOwnerClean.includes(cleanInputOwner) || cleanInputOwner.includes(rOwnerClean));
+          }) ||
+          userRepos.find((r: any) => {
+            const rRepoClean = (r.name || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            return rRepoClean === cleanInputRepo;
+          }) ||
+          userRepos.find((r: any) => {
+            const rRepoClean = (r.name || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            return rRepoClean.includes(cleanInputRepo) || cleanInputRepo.includes(rRepoClean);
           });
-          if (match) {
-            console.log(`[Smart GitHub Resolver] Auto-resolved public user '${owner}/${repo}' -> '${match.owner.login}/${match.name}'`);
-            return { owner: match.owner.login as string, repo: match.name as string, repoData: match, errorRes: null };
-          }
+
+        if (match) {
+          console.log(`[Smart GitHub Resolver] Auto-resolved '${owner}/${repo}' -> '${match.owner.login}/${match.name}'`);
+          return { owner: match.owner.login as string, repo: match.name as string, repoData: match, errorRes: null };
+        }
+
+        // If only one repository exists for this user account, use it as candidate
+        if (userRepos.length === 1 && userRepos[0]?.owner?.login) {
+          const soleRepo = userRepos[0];
+          console.log(`[Smart GitHub Resolver] Auto-targeted sole repo '${soleRepo.owner.login}/${soleRepo.name}' for user '${soleRepo.owner.login}'`);
+          return { owner: soleRepo.owner.login as string, repo: soleRepo.name as string, repoData: soleRepo, errorRes: null };
         }
       }
-    } catch (e) {
-      console.warn('[Smart GitHub Resolver] Public user repos check failed:', e);
     }
+  } catch (e) {
+    console.warn('[Smart GitHub Resolver] Token user repos check failed:', e);
   }
 
-  return { owner, repo, repoData: null, errorRes: directRes };
+  // 3. Try public user repos search
+  try {
+    const pubReposRes = await fetch(`https://api.github.com/users/${encodeURIComponent(owner)}/repos?per_page=100&sort=updated`, { headers });
+    if (pubReposRes.ok) {
+      const pubRepos = await pubReposRes.json();
+      if (Array.isArray(pubRepos)) {
+        const match = pubRepos.find((r: any) => {
+          const rClean = (r.name || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+          return rClean === cleanInputRepo || rClean.includes(cleanInputRepo) || cleanInputRepo.includes(rClean);
+        });
+        if (match) {
+          console.log(`[Smart GitHub Resolver] Auto-resolved public user '${owner}/${repo}' -> '${match.owner.login}/${match.name}'`);
+          return { owner: match.owner.login as string, repo: match.name as string, repoData: match, errorRes: null };
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[Smart GitHub Resolver] Public user repos check failed:', e);
+  }
+
+  return { owner, repo, repoData: null, errorRes: null };
 }
 
 // Common source files to probe if GitHub API is rate-limited or tree is unavailable
@@ -998,20 +1031,56 @@ export async function handleCreateGitHubPullRequest(req: Request, res: Response)
       });
     }
 
-    const defaultBranch = repoData?.default_branch || 'main';
+    let targetBranch = repoData?.default_branch || 'main';
+    let baseSha: string | null = null;
 
-    const refRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${defaultBranch}`, { headers });
-    if (!refRes.ok) {
-      return res.status(refRes.status).json({
-        error: `Não foi possível obter a referência da branch padrão '${defaultBranch}'.`,
+    // Multi-tier SHA resolution: 1) /branches/{branch}, 2) /git/ref/heads/{branch}, 3) /branches list
+    try {
+      const branchRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/branches/${encodeURIComponent(targetBranch)}`, { headers });
+      if (branchRes.ok) {
+        const bData = await branchRes.json();
+        baseSha = bData.commit?.sha || null;
+      }
+    } catch {}
+
+    if (!baseSha) {
+      try {
+        const refRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(targetBranch)}`, { headers });
+        if (refRes.ok) {
+          const refData = await refRes.json();
+          baseSha = refData.object?.sha || null;
+        }
+      } catch {}
+    }
+
+    if (!baseSha) {
+      try {
+        const allBranchesRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/branches?per_page=100`, { headers });
+        if (allBranchesRes.ok) {
+          const branchList = await allBranchesRes.json();
+          if (Array.isArray(branchList) && branchList.length > 0) {
+            const found = branchList.find((b: any) => b.name === 'main') ||
+                          branchList.find((b: any) => b.name === 'master') ||
+                          branchList[0];
+            if (found) {
+              targetBranch = found.name;
+              baseSha = found.commit?.sha || null;
+            }
+          }
+        }
+      } catch {}
+    }
+
+    if (!baseSha) {
+      return res.status(404).json({
+        error: `Não foi possível obter o commit base da branch '${targetBranch}' no repositório ${owner}/${repo}.`,
       });
     }
-    const refData = await refRes.json();
-    const baseSha = refData.object.sha;
 
     // 2. Create patch branch `rustshield-patch-[timestamp]`
     const timestamp = Date.now().toString().slice(-6);
-    const branchName = `rustshield-patch-${timestamp}`;
+    const randomSuffix = Math.random().toString(36).substring(2, 6);
+    const branchName = `rustshield-patch-${timestamp}-${randomSuffix}`;
 
     const createBranchRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs`, {
       method: 'POST',
@@ -1023,9 +1092,9 @@ export async function handleCreateGitHubPullRequest(req: Request, res: Response)
     });
 
     if (!createBranchRes.ok && createBranchRes.status !== 422) {
-      const bErr = await createBranchRes.text();
+      const bErr = await createBranchRes.text().catch(() => '');
       return res.status(createBranchRes.status).json({
-        error: `Falha ao criar a branch '${branchName}' no GitHub.`,
+        error: `Falha ao criar a branch '${branchName}' no GitHub (HTTP ${createBranchRes.status}).`,
         details: bErr,
       });
     }
@@ -1038,7 +1107,11 @@ export async function handleCreateGitHubPullRequest(req: Request, res: Response)
       const encodedPathForUrl = normalizedPath.split('/').map(encodeURIComponent).join('/');
       const fileUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${encodedPathForUrl}?ref=${branchName}`;
       
-      const fileRes = await fetch(fileUrl, { headers });
+      let fileRes = await fetch(fileUrl, { headers });
+      if (!fileRes.ok) {
+        // Fallback to base branch
+        fileRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${encodedPathForUrl}?ref=${targetBranch}`, { headers });
+      }
       if (!fileRes.ok) continue;
 
       const fileData = await fileRes.json();
@@ -1122,15 +1195,38 @@ export async function handleCreateGitHubPullRequest(req: Request, res: Response)
       body: JSON.stringify({
         title,
         head: branchName,
-        base: defaultBranch,
+        base: targetBranch,
         body: bodyText,
       }),
     });
 
     if (!prRes.ok) {
-      const prErr = await prRes.text();
+      const prErr = await prRes.text().catch(() => '');
+
+      // Check if PR already exists for this branch
+      if (prErr.includes('A pull request already exists') || prRes.status === 422) {
+        try {
+          const existingPrsRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls?head=${owner}:${branchName}&state=all`, { headers });
+          if (existingPrsRes.ok) {
+            const prList = await existingPrsRes.json();
+            if (Array.isArray(prList) && prList.length > 0) {
+              const existingPr = prList[0];
+              return res.json({
+                success: true,
+                isSimulated: false,
+                prUrl: existingPr.html_url,
+                prNumber: existingPr.number,
+                branch: branchName,
+                patchedFiles: updatedFiles.length > 0 ? updatedFiles : patches.map((p: CreatePrPatchItem) => p.manifestPath),
+                message: `Pull Request #${existingPr.number} já existente encontrado em ${owner}/${repo}!`,
+              });
+            }
+          }
+        } catch {}
+      }
+
       return res.status(prRes.status).json({
-        error: `A branch '${branchName}' foi criada e os manifestos foram atualizados, porém houve uma falha ao abrir o Pull Request na API.`,
+        error: `A branch '${branchName}' foi criada e os manifestos foram atualizados, porém houve uma falha ao abrir o Pull Request na API (HTTP ${prRes.status}).`,
         details: prErr,
         branch: branchName,
       });
@@ -1217,7 +1313,7 @@ export async function handleCreateRefactorPullRequest(req: Request, res: Respons
     const parsed = parseGitHubUrl(repoUrl);
     if (!parsed) {
       return res.status(400).json({
-        error: 'URL de repositório GitHub inválida. Exemplo: https://github.com/mrcoantonioconceicao/nexavor_1.0',
+        error: 'URL de repositório GitHub inválida. Exemplo: https://github.com/mrcoantonioconceicao-ctrl/NEXAVOR-QUANTUM-AUDIT',
       });
     }
 
@@ -1259,28 +1355,53 @@ export async function handleCreateRefactorPullRequest(req: Request, res: Respons
       });
     }
 
-    const defaultBranch = repoData?.default_branch || 'main';
-    console.log(`[RustShield Q-Audit Backend] Passo 1: Capturando SHA base da branch principal '${defaultBranch}'...`);
+    let targetBranch = repoData?.default_branch || 'main';
+    let baseSha: string | null = null;
 
-    const refRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${defaultBranch}`, { headers });
-    if (!refRes.ok) {
-      const errText = await refRes.text().catch(() => '');
-      console.error(`[RustShield Q-Audit Backend] Passo 1 Falhou! HTTP ${refRes.status}:`, errText);
-      return res.status(refRes.status).json({
-        error: `Não foi possível obter a branch padrão '${defaultBranch}' do repositório ${owner}/${repo}.`,
-        details: errText,
-      });
-    }
+    // Multi-tier SHA resolution: 1) /branches/{branch}, 2) /git/ref/heads/{branch}, 3) /branches list
+    try {
+      const branchRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/branches/${encodeURIComponent(targetBranch)}`, { headers });
+      if (branchRes.ok) {
+        const bData = await branchRes.json();
+        baseSha = bData.commit?.sha || null;
+      }
+    } catch {}
 
-    const refData = await refRes.json();
-    const baseSha = refData.object?.sha;
     if (!baseSha) {
-      console.error(`[RustShield Q-Audit Backend] Passo 1 Falhou! SHA nulo para branch '${defaultBranch}'`);
-      return res.status(500).json({
-        error: `SHA do commit base da branch '${defaultBranch}' não foi encontrado.`,
+      try {
+        const refRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(targetBranch)}`, { headers });
+        if (refRes.ok) {
+          const refData = await refRes.json();
+          baseSha = refData.object?.sha || null;
+        }
+      } catch {}
+    }
+
+    if (!baseSha) {
+      try {
+        const allBranchesRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/branches?per_page=100`, { headers });
+        if (allBranchesRes.ok) {
+          const branchList = await allBranchesRes.json();
+          if (Array.isArray(branchList) && branchList.length > 0) {
+            const found = branchList.find((b: any) => b.name === 'main') ||
+                          branchList.find((b: any) => b.name === 'master') ||
+                          branchList[0];
+            if (found) {
+              targetBranch = found.name;
+              baseSha = found.commit?.sha || null;
+            }
+          }
+        }
+      } catch {}
+    }
+
+    if (!baseSha) {
+      console.error(`[RustShield Q-Audit Backend] Passo 1 Falhou! SHA nulo para branch '${targetBranch}'`);
+      return res.status(404).json({
+        error: `Não foi possível obter a branch padrão '${targetBranch}' ou seu commit base no repositório ${owner}/${repo}.`,
       });
     }
-    console.log(`[RustShield Q-Audit Backend] Passo 1 Sucesso: Base SHA = ${baseSha}`);
+    console.log(`[RustShield Q-Audit Backend] Passo 1 Sucesso: Base Branch '${targetBranch}', SHA = ${baseSha}`);
 
     // 2. Criar nova branch isolada e higienizada (Passo 2)
     const timestamp = Date.now().toString().slice(-6);
@@ -1304,35 +1425,40 @@ export async function handleCreateRefactorPullRequest(req: Request, res: Respons
       const bErr = await createBranchRes.text().catch(() => '');
       console.error(`[RustShield Q-Audit Backend] Passo 2 Falhou! HTTP ${createBranchRes.status}:`, bErr);
       return res.status(createBranchRes.status).json({
-        error: `Falha ao criar a branch '${branchName}' no GitHub (HTTP ${createBranchRes.status}).`,
+        error: `Falha ao criar a branch '${branchName}' no GitHub (HTTP ${createBranchRes.status}). Certifique-se de que o token possui permissão de escrita ("repo").`,
         details: bErr,
       });
     }
     console.log(`[RustShield Q-Audit Backend] Passo 2 Sucesso: Branch '${branchName}' criada com sucesso.`);
 
-    // 3. Verificar se arquivo já existe na branch para obter SHA de substituição
-    const fileUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${encodedPathForUrl}?ref=${branchName}`;
-    console.log(`[RustShield Q-Audit Backend] Passo 3: Verificando existência prévia do arquivo em '${encodedPathForUrl}'...`);
-
-    const fileRes = await fetch(fileUrl, { headers });
+    // 3. Verificar se arquivo já existe na branch ou na base para obter SHA de substituição
     let fileSha: string | undefined = undefined;
 
+    // Check on newly created branch first
+    const fileUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${encodedPathForUrl}?ref=${branchName}`;
+    const fileRes = await fetch(fileUrl, { headers });
     if (fileRes.ok) {
       const fileData = await fileRes.json();
       if (fileData && typeof fileData.sha === 'string' && fileData.sha.trim().length > 0) {
         fileSha = fileData.sha.trim();
-        console.log(`[RustShield Q-Audit Backend] Arquivo já existente encontrado na branch. SHA do blob = ${fileSha}`);
       }
     } else {
-      console.log(`[RustShield Q-Audit Backend] Arquivo novo na branch. Será criado em '${normalizedFilePath}'.`);
+      // Check on base branch
+      const baseFileRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${encodedPathForUrl}?ref=${targetBranch}`, { headers });
+      if (baseFileRes.ok) {
+        const baseFileData = await baseFileRes.json();
+        if (baseFileData && typeof baseFileData.sha === 'string' && baseFileData.sha.trim().length > 0) {
+          fileSha = baseFileData.sha.trim();
+        }
+      }
     }
 
-    // Converter conteúdo refatorado para Base64 e remover quebras de linha (Requisito Técnico Base64 Clean)
+    // Converter conteúdo refatorado para Base64 e remover quebras de linha
     const cleanBase64Content = Buffer.from(refactoredContent, 'utf-8')
       .toString('base64')
       .replace(/(\r\n|\n|\r)/g, "");
 
-    // Montar payload estritamente higienizado
+    // Montar payload
     const putPayload: Record<string, string> = {
       message: `refactor(ast-ai): refatoração guiada por AST + Gemini IA em ${normalizedFilePath} [RustShield Quantum]`,
       content: cleanBase64Content,
@@ -1360,6 +1486,25 @@ export async function handleCreateRefactorPullRequest(req: Request, res: Respons
       });
     }
 
+    // If 409 or 422 occurred, attempt retry by re-fetching SHA
+    if (!putRes.ok && (putRes.status === 409 || putRes.status === 422)) {
+      console.warn(`[RustShield Q-Audit Backend] Tentando auto-recuperação do SHA para commit (HTTP ${putRes.status})...`);
+      try {
+        const refetchRes = await fetch(fileUrl, { headers });
+        if (refetchRes.ok) {
+          const freshData = await refetchRes.json();
+          if (freshData?.sha) {
+            putPayload.sha = freshData.sha;
+            putRes = await fetch(fileUrl, {
+              method: 'PUT',
+              headers,
+              body: JSON.stringify(putPayload),
+            });
+          }
+        }
+      } catch {}
+    }
+
     if (!putRes.ok) {
       let putErr = '';
       try {
@@ -1372,7 +1517,7 @@ export async function handleCreateRefactorPullRequest(req: Request, res: Respons
       }
 
       return res.status(putRes.status).json({
-        error: `Falha ao realizar commit do arquivo refatorado na branch '${branchName}' (HTTP ${putRes.status}). O GitHub rejeitou o payload com a resposta: ${putErr}`,
+        error: `Falha ao realizar commit do arquivo refatorado na branch '${branchName}' (HTTP ${putRes.status}).`,
         details: putErr,
       });
     }
@@ -1382,7 +1527,7 @@ export async function handleCreateRefactorPullRequest(req: Request, res: Respons
     console.log(`[RustShield Q-Audit Backend] Passo 3 Sucesso: Arquivo Físico Refatorado Commitado com Sucesso! SHA = ${commitSha}`);
 
     // 4. Somente após sucesso confirmado do commit do arquivo físico, abrir o Pull Request (Passo 4)
-    console.log(`[RustShield Q-Audit Backend] Passo 4: Abrindo Pull Request unindo '${branchName}' -> '${defaultBranch}'...`);
+    console.log(`[RustShield Q-Audit Backend] Passo 4: Abrindo Pull Request unindo '${branchName}' -> '${targetBranch}'...`);
 
     const fixesList = astFixes
       .map((f: any) => `- **${f.nodeId}** (${f.type}): ${f.explanation || 'Refatorado com sucesso'}`)
@@ -1413,7 +1558,7 @@ ${technicalRationale || 'Refatoração concluída mantendo total compatibilidade
       body: JSON.stringify({
         title: `[RustShield Quantum] Refatoração de Código Legado AST + IA: ${normalizedFilePath}`,
         head: branchName,
-        base: defaultBranch,
+        base: targetBranch,
         body: prBody,
       }),
     });
@@ -1421,6 +1566,30 @@ ${technicalRationale || 'Refatoração concluída mantendo total compatibilidade
     if (!prRes.ok) {
       const prErr = await prRes.text().catch(() => '');
       console.error(`[RustShield Q-Audit Backend] Passo 4 Falhou! HTTP ${prRes.status} ao abrir Pull Request:`, prErr);
+
+      // Check if PR already exists for this branch
+      if (prErr.includes('A pull request already exists') || prRes.status === 422) {
+        try {
+          const existingPrsRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls?head=${owner}:${branchName}&state=all`, { headers });
+          if (existingPrsRes.ok) {
+            const prList = await existingPrsRes.json();
+            if (Array.isArray(prList) && prList.length > 0) {
+              const existingPr = prList[0];
+              return res.json({
+                success: true,
+                isSimulated: false,
+                prUrl: existingPr.html_url,
+                prNumber: existingPr.number,
+                branch: branchName,
+                filePath: normalizedFilePath,
+                engineeringHoursSaved,
+                message: `Pull Request #${existingPr.number} já existente encontrado em ${owner}/${repo}!`,
+              });
+            }
+          }
+        } catch {}
+      }
+
       return res.status(prRes.status).json({
         error: `A branch '${branchName}' foi criada e o arquivo físico refatorado foi comitado com sucesso, porém a API do GitHub retornou erro ao abrir o Pull Request (HTTP ${prRes.status}).`,
         details: prErr,

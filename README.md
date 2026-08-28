@@ -11,15 +11,15 @@
 
 ## 📋 Visão Geral Executiva
 
-O **NEXAVOR-QUANTUM-AUDIT (RustShield Quantum)** é uma plataforma unificada de **Engenharia de Segurança de Software de Nível Enterprise (AppSec, GRC & DevSecOps)**, desenvolvida para fornecer auditoria contínua, governança cibernética, mitigação de cadeia de suprimentos e transição para criptografia pós-quântica.
+O **NEXAVOR-QUANTUM-AUDIT (RustShield Quantum)** é uma plataforma unificada de **Engenharia de Segurança de Software de Nível Enterprise (AppSec, GRC & DevSecOps)**, desenvolvida para fornecer auditoria contínua, governança cibernética, mitigação de riscos na cadeia de suprimentos e transição para criptografia pós-quântica.
 
-A plataforma combina análise determinística de código-fonte via **AST (Abstract Syntax Tree)**, inteligência artificial auditável via **Google Gemini**, modelagem preditiva espectral por **Teoria das Ondas (Equações de Schrödinger / Solitons)** e conformidade estrita com marcos regulatórios globais.
+A plataforma integra análise estática sintática rigorosa (**Árvore Sintática Abstrata - AST**), inteligência artificial auditável (**Google Gemini**), modelagem espectral de regressão via **Teoria das Ondas (Equações de Schrödinger / Solitons)** e conformidade contínua com os principais marcos regulatórios globais.
 
 ### 🎯 Principais Pilares do Sistema:
 1. **Governança, Risco & Conformidade (GRC Hub)**: Matriz automatizada de conformidade para **SOC 2 Type II**, **ISO/IEC 27001:2022**, **NIST SP 800-218 (SSDF v1.1)**, **PCI-DSS v4.0** e **OWASP Top 10 (2025/2021)**.
-2. **Quantificação Financeira FAIR & ROSI**: Cálculo algorítmico da Perda Anual Esperada (**ALE**), Perda Única (**SLE**), Frequência Anual de Ocorrência (**ARO**) e Retorno sobre Investimento em Segurança (**ROSI**), demonstrando até **92% de redução no risco financeiro**.
+2. **Quantificação Financeira FAIR & ROSI**: Cálculo matemático da Perda Anual Esperada (**ALE**), Perda Única (**SLE**), Frequência Anual de Ocorrência (**ARO**) e Retorno sobre Investimento em Segurança (**ROSI**), demonstrando até **92% de redução no risco financeiro**.
 3. **Software Bill of Materials (SBOM)**: Emissão de inventários em **OWASP CycloneDX v1.5 JSON** e **ISO/IEC 5962 SPDX v2.3 JSON** com rastreabilidade SLSA Level 3 e hashes SHA-256.
-4. **Refatoração Determinística (AST + Google Gemini)**: Correção automatizada de código inseguro com geração de branches isoladas e abertura automática de **Pull Requests no GitHub via API REST**.
+4. **Refatoração Determinística (AST + Google Gemini)**: Correção automatizada de código inseguro com geração de branches isoladas e abertura automática de **Pull Requests no GitHub via API REST** (com commit físico sanitizado em Base64 e auto-recuperação de SHA).
 5. **Hub Criptográfico Pós-Quântico (NIST PQC)**: Detecção de vulnerabilidades aos algoritmos de Shor e Grover, verificação de tempo constante (`ConstantTimeEq`) e migração para **FIPS 203 (ML-KEM)**, **FIPS 204 (ML-DSA)** e **FIPS 205 (SLH-DSA)**.
 6. **Trilha de Auditoria Imutável (Ledger Forense) & SIEM**: Encadeamento de blocos criptográficos SHA-256 (*Hash Chain Tamper-Proof*) e streaming nativo nos formatos **CEF (Splunk/Datadog)** e **JSON-ND (ElasticSearch)**.
 7. **Pipeline Studio Multi-Cloud**: Geração de manifestos CI/CD para GitHub Actions, GitLab CI, Azure DevOps e Bitbucket Pipelines com webhooks autenticados por **HMAC-SHA256**.
@@ -95,14 +95,14 @@ A plataforma combina análise determinística de código-fonte via **AST (Abstra
 
 ### 5. 🪄 Studio de Refatoração de Código Legado & Motor AST Autônomo
 - **Regras Estendidas de Análise Sintática (AST)**:
-  - **Rust (Memory & Concurrency Safety)**: Detecção obriga de blocos `unsafe` ausentes de anotação de garantia (`// SAFETY: ...`), chamadas a `.unwrap()` / `.expect()` em caminhos de execução produtivos (exigindo substituição por `Result<T, E>`), e mutabilidade global `static mut` sem abstrações de concorrência atômica.
-  - **TypeScript / Node.js / Web**: Identificação de contaminação de protótipo (*Prototypal Pollution* via `__proto__` e `constructor.prototype`), vulnerabilidades *ReDoS* em expressões regulares com potenciais de backtracking catastrófico e desserialização perigosa.
+  - **Rust (Memory & Concurrency Safety)**: Detecção obrigatória de blocos `unsafe` sem anotação regulatória de garantia (`// SAFETY: ...`), chamadas a `.unwrap()` / `.expect()` em caminhos de execução produtivos (exigindo substituição por `Result<T, E>`), e mutabilidade global `static mut` sem abstrações de concorrência atômica.
+  - **TypeScript / Node.js / Web**: Identificação de contaminação de protótipo (*Prototypal Pollution* via `__proto__` e `constructor.prototype`), vulnerabilidades *ReDoS* em expressões regulares com potenciais de backtracking catastrófico e nós de desserialização insegura.
   - **Geral (Secrets & Ciphers)**: Varredura de segredos hardcoded (chaves privadas, JWT secrets, tokens AWS) e uso de cifras simétricas sem IV/Salt adequado (ex: ECB/CBC sem padding seguro).
 - **Refatoração Poliglota Limpa**:
   - Reconhecimento automático de stack (TypeScript, Rust, Node.js, PHP, C/C++) com reescrita limpa, compilável e estritamente idiomática, sem contaminação cruzada de conceitos entre linguagens.
 - **Orquestração de Pull Request com Commit Físico**:
   - Criação automatizada de branch isolada (`rustshield-legacy-refactor-[timestamp]`).
-  - Estruturação do commit físico do arquivo refatorado limpo codificado em Base64 sanitizado via GitHub REST API.
+  - Estruturação do commit físico do arquivo refatorado limpo codificado em Base64 sanitizado via GitHub REST API com rotina de auto-recuperação de SHA.
   - Abertura de PR com parecer técnico executivo "Antes vs. Depois", mapeamento de conformidade GRC (SOC 2, ISO 27001, NIST SP 800-218, NIST PQC FIPS 203/204/205) e métrica de esforço economizado (~3 a 4.5 horas por arquivo).
 
 ### 6. 🔒 Trilha de Auditoria Imutável (Ledger Forense) & SIEM
