@@ -1,0 +1,51 @@
+{
+  "entities": {
+    "AuditSession": {
+      "title": "AuditSession",
+      "description": "Historical security audit inspection session stored in Firestore",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sessionId": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "repoFullName": { "type": "string" },
+        "repoName": { "type": "string" },
+        "repoOwner": { "type": "string" },
+        "score": { "type": "number" },
+        "primaryLanguage": { "type": "string" },
+        "commitOrBranch": { "type": "string" },
+        "filesCount": { "type": "number" },
+        "totalLines": { "type": "number" },
+        "vulnerabilitiesCount": { "type": "object" },
+        "waveHazardsCount": { "type": "number" },
+        "quantumScore": { "type": "number" },
+        "report": { "type": "object" }
+      },
+      "required": ["id", "timestamp", "repoFullName", "score"]
+    },
+    "WebhookEvent": {
+      "title": "WebhookEvent",
+      "description": "Incoming GitHub webhook CI/CD execution log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "event": { "type": "string" },
+        "repository": { "type": "string" },
+        "sender": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "event", "repository", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/audit_sessions/{sessionId}": {
+      "schema": "AuditSession",
+      "description": "Stores individual security audit session reports"
+    },
+    "/webhook_events/{eventId}": {
+      "schema": "WebhookEvent",
+      "description": "Stores inbound webhook triggers and verification history"
+    }
+  }
+}

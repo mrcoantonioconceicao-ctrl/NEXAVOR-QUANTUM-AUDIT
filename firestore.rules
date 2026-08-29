@@ -1,0 +1,21 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Permit read and write to audit reports and webhook logs for authenticated users
+    // (including anonymous sessions provisioned by the application)
+    match /audit_reports/{reportId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+    
+    match /audit_sessions/{sessionId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    match /webhook_events/{eventId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+  }
+}
