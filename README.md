@@ -1,5 +1,5 @@
 # 🛡️ NEXAVOR-QUANTUM-AUDIT (RustShield Quantum)
-### Enterprise DevSecOps, GRC Governance, Software Supply Chain & Post-Quantum Cryptography (NIST PQC) Suite
+#### Enterprise DevSecOps, GRC Governance, Software Supply Chain & Post-Quantum Cryptography (NIST PQC) Suite
 
 [![CI/CD Security Gate](https://github.com/mrcoantonioconceicao-ctrl/NEXAVOR-QUANTUM-AUDIT/actions/workflows/ci.yml/badge.svg)](https://github.com/mrcoantonioconceicao-ctrl/NEXAVOR-QUANTUM-AUDIT/actions)
 [![Enterprise Grade](https://img.shields.io/badge/Enterprise%20Grade-Production%20Ready%20v2.5-00C853?style=for-the-badge&logo=shield&logoColor=white)](https://github.com/mrcoantonioconceicao-ctrl/NEXAVOR-QUANTUM-AUDIT)
@@ -15,7 +15,7 @@
 
 O **NEXAVOR-QUANTUM-AUDIT (RustShield Quantum)** é uma plataforma unificada de **Engenharia de Segurança de Software de Nível Enterprise (AppSec, GRC & DevSecOps)**, desenvolvida para fornecer auditoria contínua, governança cibernética, mitigação de riscos na cadeia de suprimentos de software e transição de sistemas legados para criptografia pós-quântica resistente a algoritmos de Shor e Grover.
 
-A plataforma integra análise estática sintática rigorosa (**Árvore Sintática Abstrata - AST**), inteligência artificial auditável (**Google Gemini**), modelagem espectral de regressão via **Teoria das Ondas (Equações de Schrödinger / Solitons)** e conformidade contínua com os principais marcos regulatórios globais.
+A plataforma integra análise estática sintática rigorosa (**Árvore Sintática Abstrata - AST**), inteligência artificial auditável (**Google Gemini**), validação proativa de portas e rede em containers (**Network Security Gate**), modelagem espectral de regressão via **Teoria das Ondas (Equações de Schrödinger / Solitons)** e conformidade contínua com os principais marcos regulatórios globais.
 
 ---
 
@@ -57,6 +57,10 @@ A plataforma integra análise estática sintática rigorosa (**Árvore Sintátic
    - Geração e execução de manifestos CI/CD para **GitHub Actions**, **GitLab CI**, **Azure DevOps** e **Bitbucket Pipelines**.
    - Webhooks com autenticação criptográfica **HMAC-SHA256**.
 
+8. **Diagnóstico e Gate de Rede em Containers (`Network Security Gate`)**:
+   - Validação proativa de portas e socket TCP (`server/networkValidator.ts`) no host `0.0.0.0:3000`.
+   - Prevenção de colisões `EADDRINUSE` e inspeção detalhada de interfaces de rede em ambientes conteinerizados.
+
 ---
 
 ## 🏛️ Arquitetura do Sistema
@@ -82,9 +86,14 @@ A plataforma integra análise estática sintática rigorosa (**Árvore Sintátic
 |   | OSV.dev / RustSec API    |  | SSE Stream Broadcast     |  | Gemini AI Engine          |                   |
 |   | & Motores Estáticos AST  |  | & GitHub REST Client     |  | (Bounded Context Seguro)  |                   |
 |   +--------------------------+  +--------------------------+  +---------------------------+                   |
+|                 |                                                                                             |
+|                 v                                                                                             |
+|   +---------------------------------------------------------+                                                 |
+|   | Network Security Gate & TCP Binding (0.0.0.0:3000)      |                                                 |
+|   +---------------------------------------------------------+                                                 |
 +---------------------------------------------------------------------------------------------------------------+
                                                         |
-                                          (Server-Sent Events / JSON REST)
+                                           (Server-Sent Events / JSON REST)
                                                         v
 +---------------------------------------------------------------------------------------------------------------+
 | Frontend Enterprise (React 18 + Vite + Tailwind CSS + Framer Motion)                                          |
@@ -122,24 +131,29 @@ A plataforma integra análise estática sintática rigorosa (**Árvore Sintátic
    ```
    *(Opcional: configure sua `GEMINI_API_KEY` para enriquecimento por IA; o sistema conta com fallback determinístico completo).*
 
-4. **Executar em Modo de Desenvolvimento**:
+4. **Validar Portas e Rede (Opcional)**:
+   ```bash
+   npm run validate:network
+   ```
+
+5. **Executar em Modo de Desenvolvimento**:
    ```bash
    npm run dev
    ```
 
-5. **Executar Testes e Lint**:
+6. **Executar Testes e Lint**:
    ```bash
    npm run lint
    npm test
    ```
 
-6. **Compilar e Executar para Produção**:
+7. **Compilar e Executar para Produção**:
    ```bash
    npm run build
    npm start
    ```
 
-7. **Acessar a Plataforma**:
+8. **Acessar a Plataforma**:
    Abra no seu navegador: `http://localhost:3000`
 
 ---
