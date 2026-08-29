@@ -1,0 +1,25 @@
+{
+  "$schema": "https://rustshield.security/schemas/v1/guardrails.json",
+  "audit_version": "1.0.0",
+  "project": "NEXAVOR-QUANTUM-AUDIT",
+  "policies": {
+    "command_injection_prevention": {
+      "enforced": true,
+      "mechanism": "execve_syscall_direct",
+      "disallowed_functions": ["exec", "eval", "spawn_shell"]
+    },
+    "llm_api_protection": {
+      "rate_limit_rpm": 60,
+      "jwt_validation_required": true,
+      "system_prompt_leak_detection": true
+    },
+    "post_quantum_readiness": {
+      "algorithm": "ML-KEM-768",
+      "pqc_hybrid_mode": true
+    }
+  },
+  "compliance": {
+    "cyclomatic_complexity_max": 4,
+    "bpmn_orchestration": "7_step_automated_pipeline"
+  }
+}
