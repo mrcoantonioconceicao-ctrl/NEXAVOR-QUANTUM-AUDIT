@@ -1,5 +1,7 @@
 import type { Request, Response } from 'express';
 import os from 'os';
+import { MCPServer } from '../src/mcp/server.ts';
+
 import {
   runGeminiDeepAudit,
   generateDeterministicDeepAudit,
@@ -10,7 +12,7 @@ import {
   runGeminiAstRefactor,
   generateDeterministicAstRefactor,
   GeminiAstRefactorRequest,
-} from './geminiAuditor.js';
+} from './geminiAuditor';
 
 let requestCount = 0;
 const serverStartTime = Date.now();
@@ -351,188 +353,6 @@ const PROBE_FILE_CANDIDATES = [
   'Program.cs', 'composer.json', 'index.php', 'Dockerfile', 'README.md',
 ];
 
-export function generateSyntheticPolyglotRepository(owner: string, repo: string, requestedBranch: string = 'main') {
-  const cleanRepo = repo.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const isPayment =
-    cleanRepo.includes('slippay') ||
-    cleanRepo.includes('slip') ||
-    cleanRepo.includes('pay') ||
-    cleanRepo.includes('fintech') ||
-    cleanRepo.includes('gateway') ||
-    cleanRepo.includes('billing');
-  const isSolana =
-    cleanRepo.includes('solana') ||
-    cleanRepo.includes('anchor') ||
-    cleanRepo.includes('atolada') ||
-    cleanRepo.includes('vault') ||
-    cleanRepo.includes('defi') ||
-    cleanRepo.includes('web3');
-  const isNexa =
-    cleanRepo.includes('nexa') ||
-    cleanRepo.includes('plataforma') ||
-    cleanRepo.includes('platform') ||
-    cleanRepo.includes('saas') ||
-    cleanRepo.includes('cloud') ||
-    cleanRepo.includes('api');
-
-  if (isPayment) {
-    return {
-      repository: {
-        owner,
-        name: repo,
-        fullName: `${owner}/${repo}`,
-        description: `SlipPay 2.0 - Gateway de pagamentos corporativos, liquidação PIX, antifraude e engine nativa de criptografia`,
-        stars: 1240,
-        forks: 180,
-        openIssues: 3,
-        defaultBranch: requestedBranch,
-        language: 'TypeScript',
-        url: `https://github.com/${owner}/${repo}`,
-        fileCount: 4,
-        totalTreeFiles: 16,
-        isSyntheticFallback: true,
-        fallbackNotice: `Repositório '${owner}/${repo}' carregado via Engine de Síntese Arquitetural do RustShield Quantum. Se este repositório for privado no seu GitHub, conecte seu Token PAT para sincronização direta.`,
-      },
-      files: [
-        {
-          path: 'package.json',
-          size: 420,
-          language: 'TypeScript',
-          content: `{\n  "name": "slippay-payment-gateway",\n  "version": "2.0.4",\n  "dependencies": {\n    "express": "^4.19.2",\n    "jsonwebtoken": "^9.0.2",\n    "crypto-js": "^4.2.0",\n    "dotenv": "^16.4.5"\n  }\n}`,
-        },
-        {
-          path: 'src/server.ts',
-          size: 1980,
-          language: 'TypeScript',
-          content: `import express, { Request, Response } from 'express';\nimport crypto from 'crypto';\nimport jwt from 'jsonwebtoken';\n\nconst app = express();\napp.use(express.json());\n\n// VULNERABILIDADE: Validação de Webhook suscetível a Timing Attack\nexport function verifySlipWebhookSignature(payload: string, signature: string, secret: string): boolean {\n  const hmac = crypto.createHmac('sha256', secret);\n  const digest = hmac.update(payload).digest('hex');\n  return digest === signature;\n}\n\n// VULNERABILIDADE: Desserialização de JWT sem verificação obrigatória de algoritmo\nexport function authenticateSlipMerchant(token: string, secretKey: string) {\n  return jwt.verify(token, secretKey, {\n    algorithms: ['HS256', 'none']\n  });\n}\n\n// VULNERABILIDADE: Geração de Nonce com entropia previsível\nexport function generateSlipTransactionId(): string {\n  const randomSuffix = Math.random().toString(36).substring(2, 10);\n  return 'SLIP-TX-' + Date.now() + '-' + randomSuffix;\n}\n\napp.post('/api/v2/payments/charge', (req: Request, res: Response) => {\n  const { amount, customerId, currency } = req.body;\n  if (!amount || amount <= 0) {\n    return res.status(400).json({ error: 'Valor de cobrança inválido' });\n  }\n  const txId = generateSlipTransactionId();\n  return res.json({ status: 'PROCESSING', transactionId: txId, currency: currency || 'BRL' });\n});`,
-        },
-        {
-          path: 'Cargo.toml',
-          size: 310,
-          language: 'Rust',
-          content: `[package]\nname = "slippay-crypto-core"\nversion = "2.0.0"\nedition = "2021"\n\n[dependencies]\nring = "0.16.20"\nserde = { version = "1.0", features = ["derive"] }\nserde_json = "1.0"`,
-        },
-        {
-          path: 'src/core_engine.rs',
-          size: 1450,
-          language: 'Rust',
-          content: `use std::slice;\n\n// Motor nativo de serialização rápida de transações financeiras\npub struct SlipFastBuffer {\n    raw_ptr: *mut u8,\n    capacity: usize,\n}\n\nimpl SlipFastBuffer {\n    pub fn new(capacity: usize) -> Self {\n        let mut mem = Vec::with_capacity(capacity);\n        let raw_ptr = mem.as_mut_ptr();\n        std::mem::forget(mem);\n        SlipFastBuffer { raw_ptr, capacity }\n    }\n\n    // VULNERABILIDADE: Dereferenciamento inseguro de ponteiro sem verificação de limites\n    pub unsafe fn write_transaction_bytes(&self, offset: usize, bytes: &[u8]) {\n        let dest = self.raw_ptr.add(offset);\n        std::ptr::copy_nonoverlapping(bytes.as_ptr(), dest, bytes.len());\n    }\n\n    pub unsafe fn as_slice(&self) -> &[u8] {\n        slice::from_raw_parts(self.raw_ptr, self.capacity)\n    }\n}`,
-        },
-      ],
-    };
-  }
-
-  if (isSolana) {
-    return {
-      repository: {
-        owner,
-        name: repo,
-        fullName: `${owner}/${repo}`,
-        description: `Solana Anchor Protocol - Programa de cofres descentralizados de liquidez com contas PDA e verificação de signatários`,
-        stars: 890,
-        forks: 140,
-        openIssues: 2,
-        defaultBranch: requestedBranch,
-        language: 'Rust',
-        url: `https://github.com/${owner}/${repo}`,
-        fileCount: 4,
-        totalTreeFiles: 11,
-        isSyntheticFallback: true,
-        fallbackNotice: `Repositório '${owner}/${repo}' carregado via Engine de Síntese Arquitetural do RustShield Quantum. Se este repositório for privado no seu GitHub, conecte seu Token PAT para sincronização direta.`,
-      },
-      files: [
-        {
-          path: 'Cargo.toml',
-          size: 380,
-          language: 'Rust',
-          content: `[package]\nname = "solana-anchor-vault"\nversion = "0.1.0"\nedition = "2021"\n\n[dependencies]\nanchor-lang = "0.29.0"\nanchor-spl = "0.29.0"\nsolana-program = "1.18.0"`,
-        },
-        {
-          path: 'programs/solana-anchor-vault/src/lib.rs',
-          size: 2150,
-          language: 'Rust',
-          content: `use anchor_lang::prelude::*;\nuse anchor_spl::token::{self, Token, TokenAccount, Transfer};\n\ndeclare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");\n\n#[program]\npub mod solana_anchor_vault {\n    use super::*;\n\n    pub fn initialize_vault(ctx: Context<InitializeVault>, bump: u8) -> Result<()> {\n        let vault = &mut ctx.accounts.vault_state;\n        vault.owner = ctx.accounts.owner.key();\n        vault.bump = bump;\n        vault.total_staked = 0;\n        Ok(())\n    }\n\n    pub fn deposit_funds(ctx: Context<DepositFunds>, amount: u64) -> Result<()> {\n        require!(amount > 0, VaultError::ZeroDepositAmount);\n        \n        let cpi_accounts = Transfer {\n            from: ctx.accounts.user_token_account.to_account_info(),\n            to: ctx.accounts.vault_token_account.to_account_info(),\n            authority: ctx.accounts.owner.to_account_info(),\n        };\n        let cpi_ctx = CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts);\n        token::transfer(cpi_ctx, amount)?;\n\n        let vault = &mut ctx.accounts.vault_state;\n        vault.total_staked = vault.total_staked.checked_add(amount).ok_or(VaultError::CalculationOverflow)?;\n        Ok(())\n    }\n\n    // VULNERABILIDADE: Validação ausente de owner da conta destino em saques de emergência\n    pub fn emergency_withdraw(ctx: Context<EmergencyWithdraw>, amount: u64) -> Result<()> {\n        let vault = &mut ctx.accounts.vault_state;\n        vault.total_staked = vault.total_staked.saturating_sub(amount);\n        Ok(())\n    }\n}\n\n#[derive(Accounts)]\npub struct InitializeVault<'info> {\n    #[account(init, payer = owner, space = 8 + 32 + 1 + 8)]\n    pub vault_state: Account<'info, VaultState>,\n    #[account(mut)]\n    pub owner: Signer<'info>,\n    pub system_program: Program<'info, System>,\n}\n\n#[derive(Accounts)]\npub struct DepositFunds<'info> {\n    #[account(mut)]\n    pub vault_state: Account<'info, VaultState>,\n    #[account(mut)]\n    pub user_token_account: Account<'info, TokenAccount>,\n    #[account(mut)]\n    pub vault_token_account: Account<'info, TokenAccount>,\n    pub owner: Signer<'info>,\n    pub token_program: Program<'info, Token>,\n}\n\n#[derive(Accounts)]\npub struct EmergencyWithdraw<'info> {\n    #[account(mut)]\n    pub vault_state: Account<'info, VaultState>,\n    /// CHECK: Conta de destino de emergência sem validação de assinatura estrita\n    #[account(mut)]\n    pub recipient: AccountInfo<'info>,\n    pub owner: Signer<'info>,\n}\n\n#[account]\npub struct VaultState {\n    pub owner: Pubkey,\n    pub bump: u8,\n    pub total_staked: u64,\n}\n\n#[error_code]\npub enum VaultError {\n    #[msg("O valor do deposito deve ser maior que zero.")]\n    ZeroDepositAmount,\n    #[msg("Estouro numerico detectado no calculo.")]\n    CalculationOverflow,\n}`,
-        },
-      ],
-    };
-  }
-
-  if (isNexa) {
-    return {
-      repository: {
-        owner,
-        name: repo,
-        fullName: `${owner}/${repo}`,
-        description: `Plataforma Nexa - Suíte corporativa multilocatária de nuvem, conformidade GRC e APIs distribuídas`,
-        stars: 1560,
-        forks: 210,
-        openIssues: 5,
-        defaultBranch: requestedBranch,
-        language: 'TypeScript',
-        url: `https://github.com/${owner}/${repo}`,
-        fileCount: 3,
-        totalTreeFiles: 18,
-        isSyntheticFallback: true,
-        fallbackNotice: `Repositório '${owner}/${repo}' carregado via Engine de Síntese Arquitetural do RustShield Quantum. Se este repositório for privado no seu GitHub, conecte seu Token PAT para sincronização direta.`,
-      },
-      files: [
-        {
-          path: 'package.json',
-          size: 450,
-          language: 'TypeScript',
-          content: `{\n  "name": "plataforma-nexa-core",\n  "version": "1.4.2",\n  "dependencies": {\n    "express": "^4.19.2",\n    "jsonwebtoken": "^9.0.2",\n    "pg": "^8.11.5",\n    "bcrypt": "^5.1.1",\n    "zod": "^3.23.4"\n  }\n}`,
-        },
-        {
-          path: 'src/api/auth/rbac.ts',
-          size: 1720,
-          language: 'TypeScript',
-          content: `import { Request, Response, NextFunction } from 'express';\nimport jwt from 'jsonwebtoken';\n\nexport interface NexaUserSession {\n  userId: string;\n  tenantId: string;\n  role: 'SUPERADMIN' | 'AUDITOR' | 'DEVELOPER' | 'VIEWER';\n}\n\n// VULNERABILIDADE: Poluição de contexto na validação de permissões de tenants\nexport function enforceTenantAuthorization(req: Request, res: Response, next: NextFunction) {\n  const token = req.headers.authorization?.replace('Bearer ', '');\n  if (!token) {\n    return res.status(401).json({ error: 'Token de autenticação ausente' });\n  }\n\n  try {\n    const decoded = jwt.decode(token) as NexaUserSession;\n    if (decoded && decoded.tenantId) {\n      (req as any).user = decoded;\n      return next();\n    }\n    return res.status(403).json({ error: 'Sessão corporativa inválida' });\n  } catch (err) {\n    return res.status(401).json({ error: 'Falha ao processar credencial de acesso' });\n  }\n}\n\nconst activeSessionsCache = new Map<string, number>();\n\nexport function recordUserHeartbeat(userId: string) {\n  const count = activeSessionsCache.get(userId) || 0;\n  activeSessionsCache.set(userId, count + 1);\n}`,
-        },
-        {
-          path: 'src/services/dataPipeline.ts',
-          size: 1280,
-          language: 'TypeScript',
-          content: `import { Pool } from 'pg';\n\nconst pool = new Pool();\n\n// VULNERABILIDADE: Interpolação de parâmetros gerando potencial Injeção de SQL\nexport async function fetchTenantAuditTrail(tenantId: string, filterCategory?: string) {\n  let query = "SELECT id, event_type, created_at FROM audit_trail WHERE tenant_id = '" + tenantId + "'";\n  if (filterCategory) {\n    query += " AND category = '" + filterCategory + "'";\n  }\n  query += " ORDER BY created_at DESC LIMIT 100";\n  return await pool.query(query);\n}`,
-        },
-      ],
-    };
-  }
-
-  // Universal Polyglot Fallback
-  return {
-    repository: {
-      owner,
-      name: repo,
-      fullName: `${owner}/${repo}`,
-      description: `Repositório ${owner}/${repo} sintetizado para auditoria de segurança determinística e PQC`,
-      stars: 450,
-      forks: 60,
-      openIssues: 1,
-      defaultBranch: requestedBranch,
-      language: 'Rust',
-      url: `https://github.com/${owner}/${repo}`,
-      fileCount: 3,
-      totalTreeFiles: 8,
-      isSyntheticFallback: true,
-      fallbackNotice: `Repositório '${owner}/${repo}' carregado via Engine de Síntese Arquitetural do RustShield Quantum. Se este repositório for privado no seu GitHub, conecte seu Token PAT para sincronização direta.`,
-    },
-    files: [
-      {
-        path: 'Cargo.toml',
-        size: 280,
-        language: 'Rust',
-        content: `[package]\nname = "${repo.toLowerCase().replace(/[^a-z0-9_-]/g, '-')}"\nversion = "0.1.0"\nedition = "2021"\n\n[dependencies]\ntokio = { version = "1.36", features = ["full"] }\nserde = { version = "1.0", features = ["derive"] }`,
-      },
-      {
-        path: 'src/main.rs',
-        size: 1100,
-        language: 'Rust',
-        content: `// Módulo Core do projeto ${repo}\npub struct ProjectWorker {\n    buffer: Vec<u8>,\n}\n\nimpl ProjectWorker {\n    pub fn new() -> Self {\n        ProjectWorker { buffer: Vec::with_capacity(1024) }\n    }\n\n    pub unsafe fn raw_access(&mut self, offset: usize) -> *mut u8 {\n        self.buffer.as_mut_ptr().add(offset)\n    }\n}\n\nfn main() {\n    println!("Iniciando pipeline de segurança para ${repo}...");\n}`,
-      },
-    ],
-  };
-}
-
 export async function handleFetchGitHub(req: Request, res: Response) {
   requestCount++;
   try {
@@ -610,96 +430,141 @@ export async function handleFetchGitHub(req: Request, res: Response) {
       (req.query.pullNumber ? parseInt(String(req.query.pullNumber), 10) : undefined);
 
     try {
-      let repoMetaRes = await fetch(`https://api.github.com/repos/${actualOwner}/${actualRepo}`, { headers });
-
-      if (repoMetaRes.ok) {
-        repoData = await repoMetaRes.json();
-        defaultBranch = requestedBranch || repoData.default_branch || 'main';
-      } else if (repoMetaRes.status === 404) {
-        // Smart Multi-Stage Auto-Resolution
+      // First try to check the authenticated user identity if token is present
+      if (headers.Authorization) {
         try {
-          // Stage A: Check all repositories belonging to this user
-          const userReposRes = await fetch(
-            `https://api.github.com/users/${encodeURIComponent(actualOwner)}/repos?per_page=100`,
-            { headers }
-          );
-
-          if (userReposRes.ok) {
-            const userRepos = await userReposRes.json();
-            if (Array.isArray(userRepos) && userRepos.length > 0) {
-              const cleanInputRepo = actualRepo.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-
-              const matchedUserRepo = userRepos.find((r: any) => {
-                const rClean = (r.name || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-                return (
-                  rClean === cleanInputRepo ||
-                  rClean.includes(cleanInputRepo) ||
-                  cleanInputRepo.includes(rClean)
-                );
-              });
-
-              if (matchedUserRepo) {
-                console.log(`[Smart GitHub Resolver] Matched from user repos '${owner}/${repo}' -> '${matchedUserRepo.owner?.login}/${matchedUserRepo.name}'`);
-                actualOwner = matchedUserRepo.owner?.login || actualOwner;
-                actualRepo = matchedUserRepo.name;
-                repoData = matchedUserRepo;
-                defaultBranch = requestedBranch || matchedUserRepo.default_branch || 'main';
+          const authUserRes = await fetch('https://api.github.com/user', { headers });
+          if (authUserRes.ok) {
+            const authUser = await authUserRes.json();
+            const authLogin = authUser.login as string;
+            if (authLogin && authLogin.toLowerCase() !== actualOwner.toLowerCase()) {
+              // Try direct fetch with authenticated username
+              const authRepoRes = await fetch(`https://api.github.com/repos/${authLogin}/${actualRepo}`, { headers });
+              if (authRepoRes.ok) {
+                repoData = await authRepoRes.json();
+                actualOwner = repoData.owner?.login || authLogin;
+                actualRepo = repoData.name;
+                defaultBranch = requestedBranch || repoData.default_branch || 'main';
+                console.log(`[Smart GitHub Resolver] Auto-resolved repo using authenticated user '${actualOwner}/${actualRepo}'`);
               }
             }
           }
+        } catch (authErr) {
+          console.warn('[Smart GitHub Resolver] Authenticated user probe error:', authErr);
+        }
+      }
 
-          // Stage B: Search repositories on GitHub with sanitized query
-          if (!repoData) {
-            const cleanSearchQuery = actualRepo.replace(/[^a-zA-Z0-9_-]/g, ' ').trim();
-            const searchRes = await fetch(
-              `https://api.github.com/search/repositories?q=${encodeURIComponent(cleanSearchQuery)}`,
-              { headers }
-            );
+      if (!repoData) {
+        let repoMetaRes = await fetch(`https://api.github.com/repos/${actualOwner}/${actualRepo}`, { headers });
 
-            if (searchRes.ok) {
-              const sData = await searchRes.json();
-              if (sData.items && sData.items.length > 0) {
-                const normalizedInputOwner = owner.toLowerCase().replace(/[^a-z0-9]/g, '');
-                const match = sData.items.find((item: any) => {
-                  const itemOwner = (item.owner?.login || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-                  return (
-                    itemOwner.includes(normalizedInputOwner) ||
-                    normalizedInputOwner.includes(itemOwner) ||
-                    itemOwner.startsWith(normalizedInputOwner)
-                  );
-                });
-
-                if (match) {
-                  console.log(`[Smart GitHub Resolver] Auto-resolved from search '${owner}/${repo}' -> '${match.owner.login}/${match.name}'`);
-                  actualOwner = match.owner.login;
-                  actualRepo = match.name;
-                  repoData = match;
-                  defaultBranch = requestedBranch || match.default_branch || 'main';
+        if (repoMetaRes.ok) {
+          repoData = await repoMetaRes.json();
+          defaultBranch = requestedBranch || repoData.default_branch || 'main';
+        } else if (repoMetaRes.status === 404) {
+          // Smart Multi-Stage Auto-Resolution
+          try {
+            // Stage A: Check authenticated user's repositories if token is provided
+            if (headers.Authorization) {
+              const myReposRes = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated', { headers });
+              if (myReposRes.ok) {
+                const myRepos = await myReposRes.json();
+                if (Array.isArray(myRepos) && myRepos.length > 0) {
+                  const cleanInputRepo = actualRepo.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+                  const matched = myRepos.find((r: any) => {
+                    const rClean = (r.name || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+                    return rClean === cleanInputRepo || rClean.includes(cleanInputRepo) || cleanInputRepo.includes(rClean);
+                  });
+                  if (matched) {
+                    console.log(`[Smart GitHub Resolver] Matched from authenticated user repos '${owner}/${repo}' -> '${matched.owner?.login}/${matched.name}'`);
+                    actualOwner = matched.owner?.login || actualOwner;
+                    actualRepo = matched.name;
+                    repoData = matched;
+                    defaultBranch = requestedBranch || matched.default_branch || 'main';
+                  }
                 }
               }
             }
-          }
-        } catch (searchErr) {
-          console.warn('[Smart GitHub Resolver] Auto-resolution search attempt failed:', searchErr);
-        }
 
-        // If still not found after smart multi-stage resolution, return synthetic polyglot blueprint
-        if (!repoData) {
-          console.log(`[Smart GitHub Resolver] Synthesizing polyglot architecture blueprint for '${owner}/${repo}'...`);
-          const synthetic = generateSyntheticPolyglotRepository(owner, repo, requestedBranch || 'main');
-          return res.json({
-            success: true,
-            repository: synthetic.repository,
-            files: synthetic.files,
+            // Stage B: Check all public repositories belonging to specified owner
+            if (!repoData) {
+              const userReposRes = await fetch(
+                `https://api.github.com/users/${encodeURIComponent(actualOwner)}/repos?per_page=100`,
+                { headers }
+              );
+
+              if (userReposRes.ok) {
+                const userRepos = await userReposRes.json();
+                if (Array.isArray(userRepos) && userRepos.length > 0) {
+                  const cleanInputRepo = actualRepo.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+
+                  const matchedUserRepo = userRepos.find((r: any) => {
+                    const rClean = (r.name || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+                    return (
+                      rClean === cleanInputRepo ||
+                      rClean.includes(cleanInputRepo) ||
+                      cleanInputRepo.includes(rClean)
+                    );
+                  });
+
+                  if (matchedUserRepo) {
+                    console.log(`[Smart GitHub Resolver] Matched from user repos '${owner}/${repo}' -> '${matchedUserRepo.owner?.login}/${matchedUserRepo.name}'`);
+                    actualOwner = matchedUserRepo.owner?.login || actualOwner;
+                    actualRepo = matchedUserRepo.name;
+                    repoData = matchedUserRepo;
+                    defaultBranch = requestedBranch || matchedUserRepo.default_branch || 'main';
+                  }
+                }
+              }
+            }
+
+            // Stage C: Search repositories on GitHub with sanitized query
+            if (!repoData) {
+              const cleanSearchQuery = actualRepo.replace(/[^a-zA-Z0-9_-]/g, ' ').trim();
+              const searchRes = await fetch(
+                `https://api.github.com/search/repositories?q=${encodeURIComponent(cleanSearchQuery)}`,
+                { headers }
+              );
+
+              if (searchRes.ok) {
+                const sData = await searchRes.json();
+                if (sData.items && sData.items.length > 0) {
+                  const normalizedInputOwner = owner.toLowerCase().replace(/[^a-z0-9]/g, '');
+                  const match = sData.items.find((item: any) => {
+                    const itemOwner = (item.owner?.login || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                    return (
+                      itemOwner.includes(normalizedInputOwner) ||
+                      normalizedInputOwner.includes(itemOwner) ||
+                      itemOwner.startsWith(normalizedInputOwner)
+                    );
+                  });
+
+                  if (match) {
+                    console.log(`[Smart GitHub Resolver] Auto-resolved from search '${owner}/${repo}' -> '${match.owner.login}/${match.name}'`);
+                    actualOwner = match.owner.login;
+                    actualRepo = match.name;
+                    repoData = match;
+                    defaultBranch = requestedBranch || match.default_branch || 'main';
+                  }
+                }
+              }
+            }
+          } catch (searchErr) {
+            console.warn('[Smart GitHub Resolver] Auto-resolution search attempt failed:', searchErr);
+          }
+
+          if (!repoData) {
+            return res.status(404).json({
+              error: `Repositório '${owner}/${repo}' não encontrado no GitHub. Verifique a URL ou informe um Personal Access Token (PAT) caso o repositório seja privado.`,
+            });
+          }
+        } else if (repoMetaRes.status === 401) {
+          return res.status(401).json({
+            error: `Acesso não autorizado ao repositório '${owner}/${repo}'. Se for um repositório privado, forneça um Personal Access Token (PAT) com permissão 'repo'.`,
           });
+        } else if (repoMetaRes.status === 403 || repoMetaRes.status === 429) {
+          isRateLimited = true;
+          console.warn(`[GitHub API] Rate limit reached for ${owner}/${repo}. Falling back to raw file discovery engine.`);
         }
-      } else if (repoMetaRes.status === 401) {
-        return res.status(401).json({
-          error: `Acesso não autorizado ao repositório '${owner}/${repo}'. Se for um repositório privado, forneça um Personal Access Token (PAT) com permissão 'repo'.`,
-        });
-      } else if (repoMetaRes.status === 403 || repoMetaRes.status === 429) {
-        isRateLimited = true;
-        console.warn(`[GitHub API] Rate limit reached for ${owner}/${repo}. Falling back to raw file discovery engine.`);
       }
     } catch (metaErr) {
       console.warn('[GitHub API] Meta fetch network issue, fallback to raw probing:', metaErr);
@@ -939,12 +804,8 @@ export async function handleFetchGitHub(req: Request, res: Response) {
     }
 
     if (validFiles.length === 0) {
-      console.log(`[Smart GitHub Resolver] Zero valid files found from GitHub probe. Falling back to synthetic blueprint for '${actualOwner}/${actualRepo}'...`);
-      const synthetic = generateSyntheticPolyglotRepository(actualOwner, actualRepo, defaultBranch || 'main');
-      return res.json({
-        success: true,
-        repository: synthetic.repository,
-        files: synthetic.files,
+      return res.status(404).json({
+        error: `Nenhum arquivo de código-fonte pôde ser recuperado do repositório '${actualOwner}/${actualRepo}'. Se for um repositório privado ou com restrição de acesso da API do GitHub, forneça um Personal Access Token (PAT) com permissão 'repo'.`,
       });
     }
 
@@ -1253,12 +1114,44 @@ export async function handleCreateGitHubPullRequest(req: Request, res: Response)
 }
 
 /**
+ * Handler para o Servidor MCP (Model Context Protocol)
+ * Trata requisições JSON-RPC de IDEs (VSCode/Cursor) e assistentes de IA.
+ */
+export async function handleMcp(req: Request, res: Response) {
+  requestCount++;
+  try {
+    const body = req.body || {};
+    const response = MCPServer.handleRequest(body);
+    return res.json(response);
+  } catch (err: any) {
+    return res.status(500).json({
+      jsonrpc: '2.0',
+      id: req.body?.id || null,
+      error: {
+        code: -32603,
+        message: `Erro no servidor MCP: ${err?.message || String(err)}`,
+      },
+    });
+  }
+}
+
+/**
  * Handler para Refatoração de Código Legado Guiada por AST + Gemini IA
+ * Suporta Refatoração In-Place (mesma linguagem) e Migração Polyglot (Rust/Go)
  */
 export async function handleAstRefactor(req: Request, res: Response) {
   requestCount++;
   try {
-    const { filePath, originalContent, language, targetLanguage, astViolations } = req.body;
+    const {
+      filePath,
+      originalContent,
+      language,
+      targetLanguage,
+      targetMode,
+      target_mode,
+      ragContext,
+      astViolations,
+    } = req.body;
 
     if (!originalContent) {
       return res.status(400).json({
@@ -1266,11 +1159,15 @@ export async function handleAstRefactor(req: Request, res: Response) {
       });
     }
 
+    const effectiveMode = (targetMode || target_mode || 'IN_PLACE').toString().toUpperCase();
+
     const payload: GeminiAstRefactorRequest = {
-      filePath: filePath || 'src/legacy_code.rs',
+      filePath: filePath || 'src/legacy_code.ts',
       originalContent,
-      language: language || 'Rust',
-      targetLanguage: targetLanguage === 'Go' ? 'Go' : 'Rust',
+      language: language || 'TypeScript',
+      targetLanguage: targetLanguage,
+      targetMode: effectiveMode as any,
+      ragContext,
       astViolations: Array.isArray(astViolations) ? astViolations : [],
     };
 

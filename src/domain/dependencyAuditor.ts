@@ -728,22 +728,30 @@ export async function auditManifestDependencies(
 
         let osvData: any = null;
         try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 6000);
           const serverRes = await fetch('/api/audit/osv-batch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
             body: JSON.stringify(batchPayload),
           });
+          clearTimeout(timeoutId);
           if (serverRes.ok) {
             osvData = await serverRes.json();
           }
         } catch {
           // Direct fallback if running in environments where server proxy is unreachable
           try {
+            const controller2 = new AbortController();
+            const timeoutId2 = setTimeout(() => controller2.abort(), 6000);
             const directRes = await fetch('https://api.osv.dev/v1/querybatch', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
+              signal: controller2.signal,
               body: JSON.stringify(batchPayload),
             });
+            clearTimeout(timeoutId2);
             if (directRes.ok) {
               osvData = await directRes.json();
             }

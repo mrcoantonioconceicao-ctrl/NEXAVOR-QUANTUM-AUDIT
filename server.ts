@@ -2,7 +2,8 @@ import express from 'express';
 import path from 'path';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
-import { handleAnalyzeRepo, handleFetchGitHub, handleGetSystemMetrics, handleOsvBatchProxy, handleCreateGitHubPullRequest, handleSuggestRustPatch, handleAstRefactor, handleCreateRefactorPullRequest } from './server/routes.js';
+import { handleAnalyzeRepo, handleFetchGitHub, handleGetSystemMetrics, handleOsvBatchProxy, handleCreateGitHubPullRequest, handleSuggestRustPatch, handleAstRefactor, handleCreateRefactorPullRequest, handleMcp } from './server/routes';
+
 import {
   handleGetWebhookConfigs,
   handleSaveWebhookConfig,
@@ -11,9 +12,9 @@ import {
   handleIncomingGitHubWebhook,
   handleSimulateWebhook,
   handleWebhookStream,
-} from './server/webhooks.js';
+} from './server/webhooks';
 
-import { handleBadgeSvg } from './server/badgeGenerator.js';
+import { handleBadgeSvg } from './server/badgeGenerator';
 
 dotenv.config();
 
@@ -36,6 +37,9 @@ async function startServer() {
 
   // Real-time runtime telemetry metrics
   app.get('/api/metrics', handleGetSystemMetrics);
+
+  // MCP Protocol Route for IDEs and AI Assistants
+  app.post('/api/mcp', handleMcp);
 
   // Real API Routes
   app.post('/api/audit/analyze', handleAnalyzeRepo);

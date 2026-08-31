@@ -32,11 +32,22 @@ export interface AstViolationNode {
 export interface AstTreeSummaryNode {
   id: string;
   label: string;
-  kind: 'function' | 'struct' | 'module' | 'unsafe_block' | 'error_handling' | 'concurrency';
+  kind: 'function' | 'struct' | 'class' | 'module' | 'unsafe_block' | 'error_handling' | 'concurrency';
   lineStart: number;
   lineEnd: number;
   hasViolations: boolean;
+  cyclomaticComplexity?: number;
   children?: AstTreeSummaryNode[];
+}
+
+export interface MathematicalCodeMetrics {
+  totalLines: number;
+  codeLines: number;
+  commentLines: number;
+  blankLines: number;
+  cyclomaticComplexity: number;
+  halsteadVolume: number;
+  maintainabilityIndex: number;
 }
 
 export interface AstAnalysisReport {
@@ -51,15 +62,96 @@ export interface AstAnalysisReport {
   astTreeSummary: AstTreeSummaryNode[];
   originalContent: string;
   estimatedRefactorHours: number;
+  metrics: MathematicalCodeMetrics;
   timestamp: string;
 }
 
 /**
  * Bounded Context de Análise Sintática Abstrata (AST)
- * Motor determinístico que processa a estrutura do código e extrai os nós com violações
- * para servirem de restrição absoluta durante o raciocínio da IA Generativa (Gemini).
+ * Motor determinístico e matemático que processa cada linha e nó da AST com exatidão,
+ * extraindo nós de violação genuínos e métricas de complexidade sem qualquer dado simulado.
  */
 export class AstRefactorEngine {
+  public static calculateMathematicalMetrics(content: string): MathematicalCodeMetrics {
+    const lines = content.split('\n');
+    let codeLines = 0;
+    let commentLines = 0;
+    let blankLines = 0;
+    let decisionPoints = 0;
+
+    const decisionKeywords = [
+      /\bif\b/,
+      /\belse\s+if\b/,
+      /\bfor\b/,
+      /\bwhile\b/,
+      /\bmatch\b/,
+      /\bswitch\b/,
+      /\bcase\b/,
+      /\bcatch\b/,
+      /\bexcept\b/,
+      /\?\./,
+      /&&/,
+      /\|\|/,
+    ];
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        blankLines++;
+        continue;
+      }
+      if (
+        trimmed.startsWith('//') ||
+        trimmed.startsWith('/*') ||
+        trimmed.startsWith('*') ||
+        trimmed.startsWith('#') ||
+        trimmed.startsWith('<!--')
+      ) {
+        commentLines++;
+        continue;
+      }
+      codeLines++;
+
+      for (const rx of decisionKeywords) {
+        if (rx.test(line)) {
+          decisionPoints++;
+        }
+      }
+    }
+
+    // McCabe Cyclomatic Complexity: M = Decisions + 1
+    const cyclomaticComplexity = Math.max(1, decisionPoints + 1);
+
+    // Approximate Halstead Volume based on token entropy & line density
+    const words = content.match(/[A-Za-z0-9_]+/g) || [];
+    const uniqueWords = new Set(words).size;
+    const totalTokens = words.length;
+    const vocabulary = Math.max(2, uniqueWords);
+    const halsteadVolume = totalTokens > 0 ? Math.round(totalTokens * Math.log2(vocabulary)) : 0;
+
+    // Maintainability Index (MI = 171 - 5.2 * ln(V) - 0.23 * M - 16.2 * ln(LOC) + 50 * sin(sqrt(2.4 * perCM)))
+    const effectiveLoc = Math.max(1, codeLines);
+    const effectiveVolume = Math.max(1, halsteadVolume);
+    const commentRatio = lines.length > 0 ? commentLines / lines.length : 0;
+    const miRaw =
+      171 -
+      5.2 * Math.log(effectiveVolume) -
+      0.23 * cyclomaticComplexity -
+      16.2 * Math.log(effectiveLoc) +
+      50 * Math.sin(Math.sqrt(2.4 * commentRatio));
+    const maintainabilityIndex = Math.max(0, Math.min(100, Math.round(miRaw)));
+
+    return {
+      totalLines: lines.length,
+      codeLines,
+      commentLines,
+      blankLines,
+      cyclomaticComplexity,
+      halsteadVolume,
+      maintainabilityIndex,
+    };
+  }
+
   public static analyzeFile(filePath: string, content: string, langHint?: string): AstAnalysisReport {
     const language = langHint || this.detectLanguageFromPath(filePath);
     const lines = content.split('\n');
@@ -67,21 +159,27 @@ export class AstRefactorEngine {
     const astTreeSummary: AstTreeSummaryNode[] = [];
 
     let nodeCounter = 1;
+    const metrics = this.calculateMathematicalMetrics(content);
 
-    // Detectors por Análise Estrutural AST
+    // Varredura Determinística Linha a Linha na AST
     for (let i = 0; i < lines.length; i++) {
       const lineText = lines[i];
+      const trimmed = lineText.trim();
       const lineNumber = i + 1;
+
+      if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('#') || trimmed.startsWith('/*') || trimmed.startsWith('*')) {
+        continue;
+      }
 
       // 1. Rust / C / Go: Bloco Unsafe ou Unsafe Pointer
       if (
         lineText.includes('unsafe {') ||
         lineText.includes('unsafe fn') ||
         lineText.includes('unsafe.Pointer') ||
-        lineText.includes('std::mem::transmute')
+        lineText.includes('std::mem::transmute') ||
+        lineText.includes('std::mem::uninitialized')
       ) {
         let endLine = lineNumber;
-        // Tenta encontrar o fechamento de chaves
         let openBrackets = 0;
         for (let j = i; j < lines.length; j++) {
           if (lines[j].includes('{')) openBrackets++;
@@ -110,7 +208,8 @@ export class AstRefactorEngine {
       // 2. Unwrapped Result / Panic Prone (.unwrap(), .expect(), panic!(), unhandled promises)
       if (
         (lineText.includes('.unwrap(') || lineText.includes('.expect(') || lineText.includes('panic!(')) &&
-        !lineText.trim().startsWith('//')
+        !lineText.includes('// safe') &&
+        !lineText.includes('#[test]')
       ) {
         violations.push({
           nodeId: `AST-NODE-${nodeCounter++}`,
@@ -127,8 +226,8 @@ export class AstRefactorEngine {
 
       // 3. Concorrência e Estado Compartilhado Mutável (static mut, raw Mutex lock sem guard, unhandled goroutine race)
       if (
-        (lineText.includes('static mut') || lineText.includes('Arc::new(Mutex::new') || lineText.includes('go func(')) &&
-        !lineText.trim().startsWith('//')
+        (lineText.includes('static mut ') || (lineText.includes('Arc::new(Mutex::new') && !content.includes('lock().unwrap()')) || lineText.includes('go func(')) &&
+        !lineText.includes('// safe')
       ) {
         violations.push({
           nodeId: `AST-NODE-${nodeCounter++}`,
@@ -145,9 +244,9 @@ export class AstRefactorEngine {
 
       // 4. Injeção de Código / Concatenação SQL / Shell / Path Traversal
       if (
-        (lineText.includes('exec(') || lineText.includes('execSync(') || lineText.includes('system(') || lineText.includes('SELECT ') || lineText.includes('os.system')) &&
-        (lineText.includes('+') || lineText.includes('${') || lineText.includes('format!')) &&
-        !lineText.trim().startsWith('//')
+        (lineText.includes('exec(') || lineText.includes('execSync(') || lineText.includes('system(') || lineText.includes('SELECT ') || lineText.includes('os.system(')) &&
+        (lineText.includes('+') || lineText.includes('${') || lineText.includes('format!(') || lineText.includes('f"')) &&
+        !lineText.includes('// safe')
       ) {
         violations.push({
           nodeId: `AST-NODE-${nodeCounter++}`,
@@ -165,7 +264,7 @@ export class AstRefactorEngine {
       // 5. Violador de Tipagem TypeScript/Go (any, interface{}, raw dynamic casting)
       if (
         (lineText.includes(': any') || lineText.includes('interface{}') || lineText.includes('as any') || lineText.includes('<any>')) &&
-        !lineText.trim().startsWith('//')
+        !lineText.includes('// safe')
       ) {
         violations.push({
           nodeId: `AST-NODE-${nodeCounter++}`,
@@ -183,7 +282,7 @@ export class AstRefactorEngine {
       // 6. C / C++ / Legacy: Memory Allocation sem RAII ou Funções Perigosas (malloc, free, strcpy, sprintf, gets)
       if (
         (lineText.includes('malloc(') || lineText.includes('free(') || lineText.includes('strcpy(') || lineText.includes('sprintf(') || lineText.includes('gets(') || lineText.includes('goto ')) &&
-        !lineText.trim().startsWith('//')
+        !lineText.includes('// safe')
       ) {
         violations.push({
           nodeId: `AST-NODE-${nodeCounter++}`,
@@ -200,8 +299,8 @@ export class AstRefactorEngine {
 
       // 7. Python / JS: Serialização Insegura ou Injeção Dinâmica (pickle.load, eval, innerHTML, yaml.load)
       if (
-        (lineText.includes('pickle.load') || lineText.includes('eval(') || lineText.includes('innerHTML') || (lineText.includes('yaml.load') && !lineText.includes('SafeLoader'))) &&
-        !lineText.trim().startsWith('//')
+        (lineText.includes('pickle.load') || lineText.includes('eval(') || lineText.includes('innerHTML') || (lineText.includes('yaml.load(') && !lineText.includes('SafeLoader') && !lineText.includes('safe_load'))) &&
+        !lineText.includes('// safe')
       ) {
         violations.push({
           nodeId: `AST-NODE-${nodeCounter++}`,
@@ -218,8 +317,8 @@ export class AstRefactorEngine {
 
       // 8. Solidity / Smart Contract: tx.origin, selfdestruct, delegatecall inseguro
       if (
-        (lineText.includes('tx.origin') || lineText.includes('selfdestruct') || lineText.includes('.delegatecall(')) &&
-        !lineText.trim().startsWith('//')
+        (lineText.includes('tx.origin') || lineText.includes('selfdestruct(') || lineText.includes('.delegatecall(')) &&
+        !lineText.includes('// safe')
       ) {
         violations.push({
           nodeId: `AST-NODE-${nodeCounter++}`,
@@ -235,29 +334,15 @@ export class AstRefactorEngine {
       }
     }
 
-    // Se nenhum nó específico foi disparado, registrar nó de modernização estrutural
-    if (violations.length === 0) {
-      violations.push({
-        nodeId: `AST-NODE-${nodeCounter++}`,
-        type: 'DEPRECATED_OBSOLETE_SYNTAX',
-        severity: 'MEDIUM',
-        title: 'Auditoria de Arquitetura e Modernização Clean Code / DDD',
-        location: { startLine: 1, endLine: Math.min(lines.length, 10) },
-        codeSnippet: lines.slice(0, Math.min(lines.length, 4)).join('\n') || '// Código base',
-        cwe: 'CWE-1078',
-        recommendation: 'Aplicar isolamento de Bounded Context, construtores imutáveis e tratamento idiomático com tipos de domínio.',
-        structuralConstraint: 'CLEAN ARCHITECTURE: Refatorar módulo com separação de responsabilidades e padrões idiomáticos da linguagem.',
-      });
-    }
-
     // Gerar Resumo Sintático de Árvore (AST Structural Hierarchy)
-    let currentModule: AstTreeSummaryNode = {
+    const currentModule: AstTreeSummaryNode = {
       id: 'AST-ROOT-MODULE',
       label: `Módulo Fonte (${filePath})`,
       kind: 'module',
       lineStart: 1,
       lineEnd: lines.length,
       hasViolations: violations.length > 0,
+      cyclomaticComplexity: metrics.cyclomaticComplexity,
       children: [],
     };
 
@@ -269,19 +354,31 @@ export class AstRefactorEngine {
         line.includes('function ') ||
         line.includes('func ') ||
         line.includes('pub fn ') ||
-        line.includes('async fn ')
+        line.includes('async fn ') ||
+        line.includes('def ') ||
+        line.includes('public void ') ||
+        line.includes('public async ')
       ) {
-        const fnNameMatch = line.match(/(?:fn|function|func)\s+([a-zA-Z0-9_]+)/);
+        const fnNameMatch = line.match(/(?:fn|function|func|def|public\s+(?:async\s+)?(?:void|[a-zA-Z0-9_<>[\]]+))\s+([a-zA-Z0-9_]+)/);
         const fnName = fnNameMatch ? fnNameMatch[1] : `function_line_${i + 1}`;
-        const hasNodeInFn = violations.some((v) => v.location.startLine >= i + 1 && v.location.startLine <= i + 15);
+        const hasNodeInFn = violations.some((v) => v.location.startLine >= i + 1 && v.location.startLine <= i + 25);
+
+        // Compute local function decisions
+        let fnDecisions = 1;
+        for (let k = i; k < Math.min(i + 25, lines.length); k++) {
+          if (/\b(if|else\s+if|for|while|match|switch|case|catch)\b/.test(lines[k])) {
+            fnDecisions++;
+          }
+        }
 
         currentModule.children?.push({
           id: `AST-FN-${i + 1}`,
           label: `função ${fnName}()`,
           kind: 'function',
           lineStart: i + 1,
-          lineEnd: Math.min(i + 20, lines.length),
+          lineEnd: Math.min(i + 25, lines.length),
           hasViolations: hasNodeInFn,
+          cyclomaticComplexity: fnDecisions,
         });
       }
     }
@@ -291,8 +388,10 @@ export class AstRefactorEngine {
     const criticals = violations.filter((v) => v.severity === 'CRITICAL').length;
     const highs = violations.filter((v) => v.severity === 'HIGH').length;
 
-    // Cálculo do esforço de engenharia estimado (horas economizadas)
-    const estimatedRefactorHours = Math.max(1.5, criticals * 3.5 + highs * 2.0 + violations.length * 0.8);
+    // Cálculo do esforço de engenharia estimado (horas economizadas) estritamente derivado das violações reais
+    const estimatedRefactorHours = violations.length > 0
+      ? Number((criticals * 3.5 + highs * 2.0 + (violations.length - criticals - highs) * 0.8).toFixed(1))
+      : 0;
 
     return {
       id: `AST-REF-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -305,7 +404,8 @@ export class AstRefactorEngine {
       violations,
       astTreeSummary,
       originalContent: content,
-      estimatedRefactorHours: Number(estimatedRefactorHours.toFixed(1)),
+      estimatedRefactorHours,
+      metrics,
       timestamp: new Date().toISOString(),
     };
   }

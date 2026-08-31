@@ -19,6 +19,8 @@ import {
   Clock,
   Key,
   Lock,
+  RefreshCw,
+  Database,
 } from 'lucide-react';
 import { SecurityAuditReport, SourceFile } from '../domain/types.ts';
 import {
@@ -167,6 +169,7 @@ export const AstRefactorStudio: React.FC<AstRefactorStudioProps> = ({
   const [sourceCode, setSourceCode] = useState<string>(CODE_PRESETS.rust.code);
   const [language, setLanguage] = useState<string>('Rust');
   const [targetLanguage, setTargetLanguage] = useState<'Rust' | 'Go'>('Rust');
+  const [refactorMode, setRefactorMode] = useState<'IN_PLACE' | 'MIGRATE_RUST' | 'MIGRATE_GO'>('IN_PLACE');
   const [astReport, setAstReport] = useState<AstAnalysisReport | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [isRefactoring, setIsRefactoring] = useState<boolean>(false);
@@ -265,7 +268,8 @@ export const AstRefactorStudio: React.FC<AstRefactorStudioProps> = ({
           filePath: currentPath,
           originalContent: currentCode,
           language: currentLang,
-          targetLanguage,
+          targetLanguage: refactorMode === 'MIGRATE_GO' ? 'Go' : 'Rust',
+          targetMode: refactorMode,
           astViolations: currentReport.violations.map((v) => ({
             nodeId: v.nodeId,
             type: v.type,
@@ -508,7 +512,7 @@ export const AstRefactorStudio: React.FC<AstRefactorStudioProps> = ({
           <div className="flex items-center gap-3">
             <div className="space-y-0.5">
               <label className="text-[10px] font-mono uppercase text-zinc-500 block font-bold">
-                Origem
+                Linguagem Origem
               </label>
               <select
                 value={language}
@@ -529,18 +533,59 @@ export const AstRefactorStudio: React.FC<AstRefactorStudioProps> = ({
               </select>
             </div>
 
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               <label className="text-[10px] font-mono uppercase text-purple-400 block font-bold">
-                Destino (Target)
+                Modo de Operação da Refatoração
               </label>
-              <select
-                value={targetLanguage}
-                onChange={(e) => setTargetLanguage(e.target.value as 'Rust' | 'Go')}
-                className="bg-purple-950/40 border border-purple-500/40 rounded px-3 py-1.5 text-xs font-mono text-purple-200 focus:border-purple-400 outline-none cursor-pointer font-bold"
-              >
-                <option value="Rust">🦀 Rust</option>
-                <option value="Go">🐹 Go</option>
-              </select>
+              <div className="flex items-center gap-1.5 bg-zinc-900/90 p-1 rounded border border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRefactorMode('IN_PLACE');
+                  }}
+                  className={`px-3 py-1.5 rounded text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    refactorMode === 'IN_PLACE'
+                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow'
+                      : 'text-zinc-400 hover:text-zinc-200'
+                  }`}
+                  title="Refatora e aplica hardening mantendo a linguagem e extensão de arquivo originais"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  <span>Refatorar no Mesmo Código (In-Place)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRefactorMode('MIGRATE_RUST');
+                    setTargetLanguage('Rust');
+                  }}
+                  className={`px-3 py-1.5 rounded text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    refactorMode === 'MIGRATE_RUST'
+                      ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow'
+                      : 'text-zinc-400 hover:text-zinc-200'
+                  }`}
+                  title="Converte o código legado para Rust idiomático"
+                >
+                  <span>🦀 Migrar para Rust</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRefactorMode('MIGRATE_GO');
+                    setTargetLanguage('Go');
+                  }}
+                  className={`px-3 py-1.5 rounded text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    refactorMode === 'MIGRATE_GO'
+                      ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow'
+                      : 'text-zinc-400 hover:text-zinc-200'
+                  }`}
+                  title="Converte o código legado para Go idiomático"
+                >
+                  <span>🐹 Migrar para Go</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -632,10 +677,40 @@ export const AstRefactorStudio: React.FC<AstRefactorStudioProps> = ({
             </div>
             {astReport && (
               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-500/30">
-                Esforço Economizado: ~{astReport.estimatedRefactorHours}h
+                Esforço Estimado: ~{astReport.estimatedRefactorHours}h
               </span>
             )}
           </div>
+
+          {/* Mathematical AST & Code Metrics Panel */}
+          {astReport?.metrics && (
+            <div className="grid grid-cols-4 gap-2 p-2.5 rounded bg-zinc-900/80 border border-zinc-800 text-center font-mono">
+              <div className="p-1.5 rounded bg-zinc-950/60 border border-zinc-800/60">
+                <span className="text-[9px] text-zinc-400 uppercase block">McCabe C.C.</span>
+                <span className="text-xs font-bold text-purple-300">
+                  {astReport.metrics.cyclomaticComplexity}
+                </span>
+              </div>
+              <div className="p-1.5 rounded bg-zinc-950/60 border border-zinc-800/60">
+                <span className="text-[9px] text-zinc-400 uppercase block">Halstead Vol.</span>
+                <span className="text-xs font-bold text-cyan-300">
+                  {astReport.metrics.halsteadVolume}
+                </span>
+              </div>
+              <div className="p-1.5 rounded bg-zinc-950/60 border border-zinc-800/60">
+                <span className="text-[9px] text-zinc-400 uppercase block">Índice Manut.</span>
+                <span className={`text-xs font-bold ${astReport.metrics.maintainabilityIndex > 65 ? 'text-emerald-300' : 'text-amber-300'}`}>
+                  {astReport.metrics.maintainabilityIndex}/100
+                </span>
+              </div>
+              <div className="p-1.5 rounded bg-zinc-950/60 border border-zinc-800/60">
+                <span className="text-[9px] text-zinc-400 uppercase block">Linhas Código</span>
+                <span className="text-xs font-bold text-zinc-200">
+                  {astReport.metrics.codeLines} / {astReport.metrics.totalLines}
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* AST Violations List */}
           <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">

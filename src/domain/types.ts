@@ -214,7 +214,17 @@ export interface SecurityAuditReport {
   };
 }
 
-export type WebhookEvent = 'push' | 'pull_request' | 'workflow_run' | 'release' | 'ping';
+export type TargetMode = 'MIGRATE_RUST' | 'MIGRATE_GO' | 'REFRACTOR_IN_PLACE' | 'IN_PLACE';
+
+export type SourceLanguage = SupportedLanguage;
+
+export * from './domainEvents.ts';
+export * from './grc.ts';
+export * from './pqc.ts';
+export * from './supplyChain.ts';
+
+
+export type WebhookEvent = 'push' | 'pull_request' | 'workflow_dispatch' | 'issue_comment';
 
 export interface WebhookConfig {
   id: string;

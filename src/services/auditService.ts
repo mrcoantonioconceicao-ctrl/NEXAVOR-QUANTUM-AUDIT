@@ -71,10 +71,10 @@ export function calculateCvssWeightedSecurityScore(input: CvssScoreCalculationIn
       quantumDeduction);
 
   // Exact rule: Repositories WITHOUT critical vulnerabilities (CVSS < 9.0)
-  // are scored proportionally in the 65 - 75 range (if non-critical issues exist) or up to 95 if completely clean!
+  // are scored proportionally in the 65 - 75 range (if non-critical issues exist) or 100 if completely clean!
   if (criticalCount === 0) {
     if (highCount === 0 && mediumCount === 0 && lowCount === 0 && totalUnsafeBlocks === 0) {
-      return 95;
+      return quantumReadinessScore >= 80 ? 100 : Math.round(calculatedScore);
     }
     // Has non-critical advisories/updates: map strictly to 65 - 75
     const mappedScore = Math.round(65 + (Math.max(0, Math.min(30, calculatedScore - 50)) / 30) * 10);
@@ -153,9 +153,13 @@ export async function runFullSecurityAudit(
   let aiSoaVerdict = 'Arquitetura com separação clara de responsabilidades e isolamento de microsserviços.';
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 18000); // 18s fallback limit
+
     const aiRes = await fetch('/api/audit/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
       body: JSON.stringify({
         repoName: repo.fullName,
         files: files.map((f) => ({ path: f.path, content: f.content })),
@@ -163,6 +167,7 @@ export async function runFullSecurityAudit(
         detectedIssuesSummary: `${initialVulnerabilities.length} vulnerabilidades (incluindo ${dependencyResult.vulnerableCount} falhas de dependências/RustSec e ${staticResult.vulnerabilities.length} estáticas), ${waveAnalysis.hazards.length} hazards de onda, ${staticResult.totalUnsafeBlocks} blocos críticos`,
       }),
     });
+    clearTimeout(timeoutId);
 
     if (aiRes.ok) {
       const aiData = await aiRes.json();
@@ -173,26 +178,46 @@ export async function runFullSecurityAudit(
           aiSoaVerdict = aiData.result.architectureVerdict.soaResilience || aiSoaVerdict;
         }
         if (Array.isArray(aiData.result.deepVulnerabilities) && aiData.result.deepVulnerabilities.length > 0) {
-          const mappedAiVulns: RustVulnerability[] = aiData.result.deepVulnerabilities.map((v: any, idx: number) => ({
-            id: `AI-VULN-${idx + 1}`,
-            file: v.file || files[0]?.path || 'src/main',
-            line: v.line || 1,
-            language: staticResult.primaryLanguage,
-            title: v.title || 'Vulnerabilidade Avançada de Arquitetura/Memória',
-            severity: v.severity || 'HIGH',
-            cwe: v.cwe || 'CWE-119',
-            cvssScore: v.severity === 'CRITICAL' ? 9.5 : v.severity === 'HIGH' ? 8.2 : 6.0,
-            category: 'UNSAFE_UB',
-            description: v.explanation || 'Falha profunda de invariante de segurança em código analisado.',
-            unsafeRiskDetail: v.unsafeBlockAnalysis || 'Operação contornando garantias de isolamento de estado.',
-            waveShockwaveRadius: v.waveShockwaveRisk || 'CRATE_BOUNDARY',
-            quantumRiskDetail: v.quantumVulnerability,
-            originalSnippet: v.originalSnippet || '// Trecho com falha',
-            remediatedSnippet: v.remediatedSnippet || '// Trecho remediado',
-            suggestion: v.suggestion || v.remediationSuggestion || 'Aplique tipagem estrita, encapsulamento de estado e validação de limites conforme as diretrizes periciais.',
-            miriVerificationStatus: 'DETECTED_UB',
-            clippyLintRule: 'polyglot_security_deep_audit',
-          }));
+          const knownFilePaths = new Set(files.map((f) => f.path));
+          const existingKeys = new Set(initialVulnerabilities.map((v) => `${v.file}:${v.line}`));
+
+          const mappedAiVulns: RustVulnerability[] = [];
+          for (let idx = 0; idx < aiData.result.deepVulnerabilities.length; idx++) {
+            const v = aiData.result.deepVulnerabilities[idx];
+            const targetFile = v.file || '';
+            // Only accept vulnerability if the file actually exists in the audited codebase
+            if (!knownFilePaths.has(targetFile)) {
+              continue;
+            }
+
+            const key = `${targetFile}:${v.line || 1}`;
+            if (existingKeys.has(key)) {
+              continue;
+            }
+            existingKeys.add(key);
+
+            mappedAiVulns.push({
+              id: `AI-VULN-${idx + 1}`,
+              file: targetFile,
+              line: v.line || 1,
+              language: staticResult.primaryLanguage,
+              title: v.title || 'Vulnerabilidade Avançada de Arquitetura/Memória',
+              severity: v.severity || 'HIGH',
+              cwe: v.cwe || 'CWE-119',
+              cvssScore: v.severity === 'CRITICAL' ? 9.5 : v.severity === 'HIGH' ? 8.2 : 6.0,
+              category: 'UNSAFE_UB',
+              description: v.explanation || 'Falha profunda de invariante de segurança em código analisado.',
+              unsafeRiskDetail: v.unsafeBlockAnalysis || 'Operação contornando garantias de isolamento de estado.',
+              waveShockwaveRadius: v.waveShockwaveRisk || 'CRATE_BOUNDARY',
+              quantumRiskDetail: v.quantumVulnerability,
+              originalSnippet: v.originalSnippet || '// Trecho com falha',
+              remediatedSnippet: v.remediatedSnippet || '// Trecho remediado',
+              suggestion: v.suggestion || v.remediationSuggestion || 'Aplique tipagem estrita, encapsulamento de estado e validação de limites conforme as diretrizes periciais.',
+              miriVerificationStatus: 'DETECTED_UB',
+              clippyLintRule: 'polyglot_security_deep_audit',
+            });
+          }
+
           aiEnrichedVulnerabilities = [...initialVulnerabilities, ...mappedAiVulns];
         }
       }

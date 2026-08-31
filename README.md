@@ -1,105 +1,104 @@
-# 🛡️ NEXAVOR-QUANTUM-AUDIT (RustShield Quantum)
-#### Enterprise DevSecOps, GRC Governance, Software Supply Chain & Post-Quantum Cryptography (NIST PQC) Suite
+# 🛡️ NEXAVOR-QUANTUM-AUDIT (RustShield Quantum v2.0)
+#### Enterprise DevSecOps, GRC Governance, Software Supply Chain, Model Context Protocol (MCP) & Post-Quantum Cryptography Suite
 
 [![CI/CD Security Gate](https://github.com/mrcoantonioconceicao-ctrl/NEXAVOR-QUANTUM-AUDIT/actions/workflows/ci.yml/badge.svg)](https://github.com/mrcoantonioconceicao-ctrl/NEXAVOR-QUANTUM-AUDIT/actions)
 [![Enterprise Grade](https://img.shields.io/badge/Enterprise%20Grade-Production%20Ready%20v2.5-00C853?style=for-the-badge&logo=shield&logoColor=white)](https://github.com/mrcoantonioconceicao-ctrl/NEXAVOR-QUANTUM-AUDIT)
 [![Compliance Frameworks](https://img.shields.io/badge/Compliance-SOC2%20%7C%20ISO%2027001%20%7C%20NIST%20800--218-0284C7?style=for-the-badge&logo=security)](https://csrc.nist.gov)
-[![SBOM Standards](https://img.shields.io/badge/SBOM-CycloneDX%20v1.5%20%7C%20SPDX%20v2.3-9C27B0?style=for-the-badge&logo=json)](https://cyclonedx.org)
+[![MCP Protocol](https://img.shields.io/badge/MCP-Model%20Context%20Protocol%20v1.0-7C3AED?style=for-the-badge&logo=openai)](https://modelcontextprotocol.io)
 [![NIST PQC Standards](https://img.shields.io/badge/NIST%20PQC-FIPS%20203%20%7C%20FIPS%20204%20%7C%20FIPS%20205-00E676?style=for-the-badge&logo=lock)](https://csrc.nist.gov/projects/post-quantum-cryptography)
-[![AST + Gemini AI](https://img.shields.io/badge/AST%20%2B%20Gemini%20AI-Deterministic%20Refactor-FF6F00?style=for-the-badge&logo=google)](https://ai.google.dev)
-[![Multi-Cloud CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20%7C%20GitLab%20%7C%20Azure%20%7C%20Bitbucket-3178C6?style=for-the-badge&logo=githubactions)](https://github.com/mrcoantonioconceicao-ctrl/NEXAVOR-QUANTUM-AUDIT)
+[![AST + Gemini RAG](https://img.shields.io/badge/AST%20%2B%20Gemini%20RAG-In--Place%20%26%20Polyglot-FF6F00?style=for-the-badge&logo=google)](https://ai.google.dev)
 
 ---
 
 ## 📋 Visão Geral Executiva
 
-O **NEXAVOR-QUANTUM-AUDIT (RustShield Quantum)** é uma plataforma unificada de **Engenharia de Segurança de Software de Nível Enterprise (AppSec, GRC & DevSecOps)**, desenvolvida para fornecer auditoria contínua, governança cibernética, mitigação de riscos na cadeia de suprimentos de software e transição de sistemas legados para criptografia pós-quântica resistente a algoritmos de Shor e Grover.
+O **NEXAVOR-QUANTUM-AUDIT (RustShield Quantum v2.0)** é uma plataforma unificada de **Engenharia de Segurança de Software de Nível Enterprise (AppSec, GRC & DevSecOps)**, desenvolvida para fornecer auditoria contínua, governança cibernética, mitigação de riscos na cadeia de suprimentos de software e transição de sistemas legados para criptografia pós-quântica resistente a algoritmos de Shor e Grover.
 
-A plataforma integra análise estática sintática rigorosa (**Árvore Sintática Abstrata - AST**), inteligência artificial auditável (**Google Gemini**), validação proativa de portas e rede em containers (**Network Security Gate**), modelagem espectral de regressão via **Teoria das Ondas (Equações de Schrödinger / Solitons)** e conformidade contínua com os principais marcos regulatórios globais.
+A plataforma integra análise estática sintática rigorosa (**Árvore Sintática Abstrata - AST**), inteligência artificial auditável guiada por RAG (**Google Gemini AI Engine**), servidor **MCP (Model Context Protocol)** para integração direta com IDEs (VSCode/Cursor), modelagem espectral de regressão via **Teoria das Ondas (Equações de Schrödinger / Solitons)** e orquestração de processos orientados a domínios (**DDD + SOA/BPMN**).
 
 ---
 
 ## 🎯 Principais Pilares do Sistema
 
-1. **Governança, Risco & Conformidade (GRC Hub)**:
-   - Matriz automatizada de conformidade para **SOC 2 Type II**, **ISO/IEC 27001:2022**, **NIST SP 800-218 (SSDF v1.1)**, **PCI-DSS v4.0** e **OWASP Top 10 (2025/2021)**.
-   - Gestão de SLAs de remediação rigorosos: Crítico (24h), Alto (7d), Médio (30d).
+### 1. Refatoração In-Place vs. Migração Polyglot (TargetMode)
+A engine de AST e IA suporta duas vias operacionais no Studio de Refatoração:
+- **OPÇÃO A: MIGRAÇÃO POLYGLOT (Target: Rust ou Go)**
+  - Converte código legado (Python, Java, C++, TypeScript) para Rust (`Result<T, E>`, RAII) ou Go (`if err != nil`, Structs, Channels).
+  - Saída obrigatória em extensões `.rs` ou `.go`.
+- **OPÇÃO B: REFATORAÇÃO IN-PLACE (Target: Same-Language Hardening)**
+  - Refatora, corrige vulnerabilidades (OWASP A03, NIST PQC) e moderniza o código **sem alterar a linguagem de origem** (ex: Python para Python Seguro, TypeScript para TypeScript Seguro, C++ para C++20 Seguro).
+  - Preserva a extensão original do arquivo (`.py`, `.ts`, `.cpp`, `.java`).
+  - Aplica padrões de segurança, verificação de tempo constante (`ConstantTimeEq`), substituição de primitivas quânticas vulneráveis e tratamento defensivo de erros nativo da linguagem original.
 
-2. **Quantificação Financeira FAIR & ROSI**:
-   - Cálculo matemático da Perda Anual Esperada (**ALE**), Perda Única (**SLE**), Frequência Anual de Ocorrência (**ARO**) e Retorno sobre Investimento em Segurança (**ROSI**), demonstrando até **92% de redução no risco financeiro**.
+### 2. Servidor MCP (Model Context Protocol) — `@nexavor/mcp-server`
+Exposição do endpoint `/api/mcp` com suporte ao padrão JSON-RPC 2.0 para integração com assistentes de IA e IDEs (Cursor/VSCode):
+- **`analyze_ast`**: Análise sintática determinística e identificação de violações AST.
+- **`refactor_code`**: Execução de refatoração In-Place ou Migração Polyglot enviando `{ code, language, target_mode: "IN_PLACE" | "RUST" | "GO" }`.
+- **`calculate_fair`**: Cálculo matemático de métricas financeiras de risco (ALE, SLE, ARO, ROSI).
 
-3. **Software Bill of Materials (SBOM) & Supply Chain Security**:
-   - Emissão de inventários em **OWASP CycloneDX v1.5 JSON** e **ISO/IEC 5962 SPDX v2.3 JSON** com rastreabilidade SLSA Level 3 e hashes criptográficos SHA-256.
-   - Consulta síncrona aos bancos globais **OSV.dev**, **RustSec Advisory Database**, **NIST NVD** e **GitHub Security Advisory Database**.
+### 3. Sistema RAG (Retrieval-Augmented Generation) & Base Regulatória
+Injeção automatizada de conhecimento regulatório e técnico no contexto do Gemini AI Engine:
+- Ingestão das normas **NIST SP 800-218 (SSDF v1.1)**, **PCI-DSS v4.0 (Reqs 6.2/6.3)**, **FIPS 203 (ML-KEM)**, **FIPS 204 (ML-DSA)**, **FIPS 205 (SLH-DSA)** e advisories em tempo real das bases **OSV.dev**, **RustSec** e **NVD**.
 
-4. **Motor de Tradução/Refatoração AST em 3 Fases (Polyglot ➔ Rust/Go)**:
-   - **Fase 1 (Tradução/Refatoração):** Conversão determinística de código legado (Python, Java, C++, TypeScript) para **Rust** (`Result<T, E>`, `Option<T>`, RAII) ou **Go** (`if err != nil`, Structs tipadas, Goroutines/Channels).
-   - **Fase 2 (Mapeamento de Extensão & Destino):** Redirecionamento automático de saída com garantia estrita de extensão correta (**`Target: RUST` ➔ `.rs`** | **`Target: GO` ➔ `.go`**).
-   - **Fase 3 (Gate de Qualidade & Proteção de Configuração):**
-     - Bloqueio absoluto de sobrescrita acidental em arquivos de configuração protegidos (`requirements.txt`, `package.json`, `Cargo.toml`).
-     - Detecção de **`[STATUS: NO_OP_REQUIRED]`** para prevenir aberturas de PRs redundantes quando o código já estiver 100% íntegro.
-     - Abertura automatizada de **Pull Requests no GitHub via API REST** com commit físico sanitizado em Base64 e auto-recuperação de SHA.
+### 4. Arquitetura DDD (Domain-Driven Design) & Bounded Contexts
+Estrutura modular e desacoplada em `src/domain/`:
+- **`domain/astRefactorEngine.ts`**: Análise de AST e regras heurísticas determinísticas de correção.
+- **`domain/grc.ts`**: Entidades e Value Objects do modelo FAIR para quantificação financeira de risco e avaliação de SLAs de segurança.
+- **`domain/pqc.ts`**: Especificações de algoritmos FIPS 203/204/205 e verificação de tempo constante.
+- **`domain/supplyChain.ts`**: Emissão de documentos SBOM em CycloneDX v1.5 com nível SLSA 3/4.
+- **`domainEvents.ts`**: Disparo de eventos assíncronos (`CodeRefactoredEvent`, `VulnerabilityMitigatedEvent`).
 
-5. **Hub Criptográfico Pós-Quântico (NIST PQC Hub)**:
-   - Detecção de vulnerabilidades aos algoritmos quânticos de Shor e Grover em chaves assimétricas clássicas (RSA, ECDSA, DH, Ed25519).
-   - Verificação de tempo constante (`ConstantTimeEq`) para mitigação de ataques de canal lateral (*Timing Attacks*).
-   - Transição e conformidade com os novos padrões oficiais do NIST:
-     - **FIPS 203 — ML-KEM (Kyber-768 / Kyber-1024)** (Encapsulamento de Chaves)
-     - **FIPS 204 — ML-DSA (Dilithium-65 / Dilithium-87)** (Assinatura Digital)
-     - **FIPS 205 — SLH-DSA (SPHINCS+)** (Assinatura Stateless)
-     - **FN-DSA (Falcon)** (Assinatura Compacta)
+### 5. SOA & BPMN (Orquestração de Workflows)
+Modelo de orquestração assíncrona desacoplada (Temporal.io / Camunda 8):
+`Audit -> Vulnerability Detection -> SLA Evaluation -> Decision Gateway (In-Place vs. Migration) -> AST/RAG Refactoring -> Tamper-Proof Ledger Signing -> GitHub PR / CI Gate Notification`.
 
-6. **Trilha de Auditoria Imutável (Ledger Forense) & Integração SIEM**:
-   - Encadeamento de blocos criptográficos SHA-256 (*Hash Chain Tamper-Proof*) garantindo integridade de ponta a ponta.
-   - Streaming nativo nos formatos **CEF (Splunk, Datadog, ArcSight, QRadar)** e **JSON-ND (ElasticSearch/Logstash)**.
-
-7. **Pipeline Studio Multi-Cloud & CI/CD Security Gate**:
-   - Geração e execução de manifestos CI/CD para **GitHub Actions**, **GitLab CI**, **Azure DevOps** e **Bitbucket Pipelines**.
-   - Webhooks com autenticação criptográfica **HMAC-SHA256**.
-
-8. **Diagnóstico e Gate de Rede em Containers (`Network Security Gate`)**:
-   - Validação proativa de portas e socket TCP (`server/networkValidator.ts`) no host `0.0.0.0:3000`.
-   - Prevenção de colisões `EADDRINUSE` e inspeção detalhada de interfaces de rede em ambientes conteinerizados.
+### 6. Criptografia Pós-Quântica (NIST PQC) & Ledger Imutável
+- Proteção contra algoritmos de Shor/Grover em chaves assimétricas clássicas (RSA, ECDSA, Ed25519).
+- Suporte aos padrões **FIPS 203 (ML-KEM)**, **FIPS 204 (ML-DSA)** e **FIPS 205 (SLH-DSA)**.
+- Trilha de auditoria em encadeamento criptográfico SHA-256 e sincronização Firestore com modo fallback de streaming.
 
 ---
 
-## 🏛️ Arquitetura do Sistema
+## 🏛️ Arquitetura de Software e Fluxo de Dados
 
 ```
-                                +-----------------------------------------------+
-                                |          Repositório GitHub / GitLab / CI     |
-                                +-----------------------------------------------+
-                                                        |
-                                           (Gatilho Webhook / Evento CI)
-                                                        v
+  +---------------------------------------------------------------------------------+
+  |                       IDEs (Cursor / VSCode) / Agentes de IA                    |
+  +---------------------------------------------------------------------------------+
+                                           |
+                              (JSON-RPC 2.0 / MCP Protocol)
+                                           v
+  +---------------------------------------------------------------------------------+
+  | Servidor MCP (@nexavor/mcp-server)  --->  /api/mcp                              |
+  |  - analyze_ast                                                                  |
+  |  - refactor_code { target_mode: "IN_PLACE" | "RUST" | "GO" }                      |
+  |  - calculate_fair { ALE, SLE, ARO, ROSI }                                       |
+  +---------------------------------------------------------------------------------+
+                                           |
+                                           v
 +---------------------------------------------------------------------------------------------------------------+
 | Camada de Backend & API REST (Node.js + Express + TypeScript)                                                 |
 |                                                                                                               |
 |   +--------------------------+  +--------------------------+  +---------------------------+                   |
-|   | /api/audit/analyze       |  | /api/webhooks/github     |  | /api/badge/svg            |                   |
+|   | /api/audit/analyze       |  | /api/mcp                 |  | /api/badge/svg            |                   |
 |   +--------------------------+  +--------------------------+  +---------------------------+                   |
-|   | /api/audit/ast-refactor  |  | /api/github/refactor-pr  |  | /api/audit/suggest        |                   |
+|   | /api/audit/ast-refactor  |  | /api/github/refactor-pr  |  | /api/webhooks/github      |                   |
 |   +--------------------------+  +--------------------------+  +---------------------------+                   |
 |                 |                             |                             |                                 |
 |                 v                             v                             v                                 |
 |   +--------------------------+  +--------------------------+  +---------------------------+                   |
-|   | OSV.dev / RustSec API    |  | SSE Stream Broadcast     |  | Gemini AI Engine          |                   |
-|   | & Motores Estáticos AST  |  | & GitHub REST Client     |  | (Bounded Context Seguro)  |                   |
+|   | Bounded Contexts DDD     |  | Workflow BPMN            |  | Gemini AI Engine + RAG    |                   |
+|   | (AST, GRC, PQC, SBOM)    |  | (Orquestração Temporal)  |  | (NIST / PCI-DSS Context)  |                   |
 |   +--------------------------+  +--------------------------+  +---------------------------+                   |
-|                 |                                                                                             |
-|                 v                                                                                             |
-|   +---------------------------------------------------------+                                                 |
-|   | Network Security Gate & TCP Binding (0.0.0.0:3000)      |                                                 |
-|   +---------------------------------------------------------+                                                 |
 +---------------------------------------------------------------------------------------------------------------+
                                                         |
-                                           (Server-Sent Events / JSON REST)
+                                           (Server-Sent Events / REST)
                                                         v
 +---------------------------------------------------------------------------------------------------------------+
 | Frontend Enterprise (React 18 + Vite + Tailwind CSS + Framer Motion)                                          |
 |                                                                                                               |
-|  [ Dashboard GRC ] [ SBOM Studio ] [ PQC Hub ] [ CI/CD Multi-Cloud ] [ Ledger Imutável SIEM ]                 |
-|  [ AST Refactor Studio ] [ Code Review ] [ Teoria das Ondas ] [ Cluster 10k RPS Simulator ]                   |
+|  [ Dashboard GRC ] [ Refactor Studio (In-Place / Polyglot) ] [ PQC Hub ] [ CI/CD Multi-Cloud ]                |
+|  [ Supply Chain SBOM ] [ Ledger Imutável SIEM ] [ Teoria das Ondas ] [ Workflow BPMN ]                        |
 +---------------------------------------------------------------------------------------------------------------+
 ```
 
@@ -129,38 +128,53 @@ A plataforma integra análise estática sintática rigorosa (**Árvore Sintátic
    ```bash
    cp .env.example .env
    ```
-   *(Opcional: configure sua `GEMINI_API_KEY` para enriquecimento por IA; o sistema conta com fallback determinístico completo).*
+   *(Opcional: configure sua `GEMINI_API_KEY` para o motor de IA; a plataforma conta com fallback heurístico determinístico completo).*
 
-4. **Validar Portas e Rede (Opcional)**:
-   ```bash
-   npm run validate:network
-   ```
-
-5. **Executar em Modo de Desenvolvimento**:
+4. **Executar em Modo de Desenvolvimento**:
    ```bash
    npm run dev
    ```
 
-6. **Executar Testes e Lint**:
+5. **Executar Testes e Lint**:
    ```bash
    npm run lint
    npm test
    ```
 
-7. **Compilar e Executar para Produção**:
+6. **Compilar para Produção**:
    ```bash
    npm run build
    npm start
    ```
 
-8. **Acessar a Plataforma**:
-   Abra no seu navegador: `http://localhost:3000`
+7. **Acessar a Plataforma**:
+   - **Interface Web**: `http://localhost:3000`
+   - **Servidor MCP**: `http://localhost:3000/api/mcp`
+
+---
+
+## 🔌 Configuração do Servidor MCP no Cursor / VSCode
+
+Para conectar o Cursor ou VSCode ao servidor MCP do NEXAVOR Quantum Audit:
+
+1. Adicione a seguinte configuração no seu arquivo de MCP do Cursor (`~/.cursor/mcp.json`):
+   ```json
+   {
+     "mcpServers": {
+       "nexavor-quantum-audit": {
+         "url": "http://localhost:3000/api/mcp",
+         "transport": "http"
+       }
+     }
+   }
+   ```
+2. As ferramentas `analyze_ast`, `refactor_code` e `calculate_fair` ficarão disponíveis para chamadas diretas pelo assistente.
 
 ---
 
 ## ⚙️ Configuração do GitHub Actions CI/CD Gate
 
-O repositório já inclui o pipeline automatizado em `.github/workflows/ci.yml`. Toda abertura de Pull Request ou push na branch `main` executa:
+O pipeline automatizado está configurado em `.github/workflows/ci.yml`:
 
 ```yaml
 name: RustShield Quantum Security & CI Gate
@@ -195,19 +209,20 @@ jobs:
 - **ISO/IEC 27001:2022** (Controles Anexo A: A.8.8, A.8.28, A.8.30)
 - **SOC 2 Type II** (Trust Services Criteria CC6.1, CC6.6, CC7.1, CC8.1)
 - **PCI-DSS v4.0** (Software Security Framework)
-- **NIST FIPS 203, FIPS 204, FIPS 205** (Padrões Pós-Quânticos ML-KEM, ML-DSA e SLH-DSA)
-- **OWASP CycloneDX v1.5 & ISO/IEC 5962 SPDX v2.3** (Padrões Oficiais de SBOM)
+- **NIST FIPS 203, FIPS 204, FIPS 205** (ML-KEM, ML-DSA e SLH-DSA)
+- **OWASP CycloneDX v1.5 & ISO/IEC 5962 SPDX v2.3** (Padrões de SBOM)
 - **OASIS SARIF v2.1.0** (Static Analysis Results Interchange Format)
-- **Common Event Format (CEF) & JSON-ND** (Ingestão SIEM)
+- **MCP (Model Context Protocol)** (Especificação Anthropic / Model Context Protocol v1.0)
 
 ---
 
 ## 📄 Licença
 
-Distribuído sob a licença **MIT**. Consulte o arquivo de licença para mais informações.
+Distribuído sob a licença **MIT**.
 
 ---
 
 <p align="center">
   <sub>Desenvolvido com excelência técnica por <strong>NEXAVOR-QUANTUM-AUDIT / RustShield Quantum</strong>.</sub>
 </p>
+

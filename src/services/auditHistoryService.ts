@@ -9,7 +9,9 @@ import {
   deleteDoc, 
   query, 
   orderBy, 
-  limit 
+  limit,
+  handleFirestoreError,
+  OperationType 
 } from './firebaseClient.ts';
 
 const STORAGE_KEY = 'qaudit_session_history_v1';
@@ -132,7 +134,7 @@ export async function syncHistoryFromFirebase(): Promise<AuditSessionSnapshot[]>
       return merged;
     }
   } catch (err) {
-    console.warn('Firebase sync notice (offline or read error):', err);
+    handleFirestoreError(err, OperationType.LIST, FIRESTORE_COLLECTION);
   }
   return getAuditHistory();
 }
@@ -201,7 +203,7 @@ export function saveAuditSession(report: SecurityAuditReport): AuditSessionSnaps
       const cleanPayload = JSON.parse(JSON.stringify(snapshot));
       await setDoc(docRef, cleanPayload, { merge: true });
     } catch (firebaseErr) {
-      console.warn('Firebase Firestore async persist warning:', firebaseErr);
+      handleFirestoreError(firebaseErr, OperationType.WRITE, `${FIRESTORE_COLLECTION}/${snapshot.id}`);
     }
   })();
 
@@ -227,7 +229,7 @@ export function deleteAuditSession(id: string): void {
       const docRef = doc(db, FIRESTORE_COLLECTION, id);
       await deleteDoc(docRef);
     } catch (err) {
-      console.warn('Failed to delete session from Firebase:', err);
+      handleFirestoreError(err, OperationType.DELETE, `${FIRESTORE_COLLECTION}/${id}`);
     }
   })();
 }
