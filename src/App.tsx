@@ -368,9 +368,9 @@ export default function App() {
 
         {/* Clean Minimalist Footer */}
         <footer className="h-10 shrink-0 bg-zinc-950 border-t border-zinc-900 flex flex-col sm:flex-row items-center justify-between px-4 sm:px-6 text-[9px] uppercase tracking-widest text-zinc-500 font-mono gap-1">
-          <span>Confidential // AES-GCM Encrypted Output</span>
-          <span>MIT QUANTUM LABS</span>
-          <span className="hidden md:inline">Engine // Rust-Hardened</span>
+          <span>Confidential // AES-256-GCM Encrypted Output</span>
+          <span>RUSTSHIELD SECURE CORE v2.0</span>
+          <span className="hidden md:inline">Engine // Native Rust 1.70+</span>
         </footer>
       </div>
 

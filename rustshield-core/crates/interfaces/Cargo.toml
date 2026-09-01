@@ -1,0 +1,21 @@
+[package]
+name = "rustshield-interfaces"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Interfaces Layer (CLI via clap, HTTP API via axum, MCP Protocol JSON-RPC) for RustShield Secure Core"
+
+[dependencies]
+rustshield-domain.workspace = true
+rustshield-application.workspace = true
+rustshield-infrastructure.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+clap.workspace = true
+tokio.workspace = true
+axum.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true

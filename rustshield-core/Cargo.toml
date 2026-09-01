@@ -1,0 +1,86 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/domain",
+    "crates/application",
+    "crates/infrastructure",
+    "crates/interfaces",
+]
+
+[workspace.package]
+version = "2.0.0"
+edition = "2021"
+authors = ["RustShield Secure Core Team <security@rustshield.internal>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/mrcoantonioconceicao-ctrl/NEXAVOR-QUANTUM-AUDIT"
+rust-version = "1.70"
+
+[workspace.dependencies]
+# Core serialization & error handling
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+anyhow = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.6", features = ["v4", "serde"] }
+
+# Async runtime & HTTP
+tokio = { version = "1.35", features = ["full"] }
+axum = { version = "0.7", features = ["json", "tokio"] }
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
+async-trait = "0.1"
+
+# CLI
+clap = { version = "4.4", features = ["derive", "env"] }
+
+# Cryptography, Zero Trust & Security
+sha2 = "0.10"
+hex = "0.4"
+subtle = "2.5" # Constant-time equality comparison
+ring = { version = "0.17", features = ["std"] }
+
+# Logging & Telemetry
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Testing & Fuzzing
+proptest = "1.4"
+tempfile = "3.9"
+
+# Internal Workspace Crates
+rustshield-domain = { path = "crates/domain" }
+rustshield-application = { path = "crates/application" }
+rustshield-infrastructure = { path = "crates/infrastructure" }
+rustshield-interfaces = { path = "crates/interfaces" }
+
+[package]
+name = "rustshield-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "RustShield Secure Core - High Performance Memory-Safe AppSec, GRC & Static Analysis Engine"
+
+[dependencies]
+rustshield-domain.workspace = true
+rustshield-application.workspace = true
+rustshield-infrastructure.workspace = true
+rustshield-interfaces.workspace = true
+tokio.workspace = true
+clap.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+
+[[bin]]
+name = "rustshield"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+overflow-checks = true

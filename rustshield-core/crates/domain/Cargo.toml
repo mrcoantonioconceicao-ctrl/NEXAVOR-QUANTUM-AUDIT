@@ -1,0 +1,17 @@
+[package]
+name = "rustshield-domain"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Domain Layer (Entities, Value Objects, Domain Events) for RustShield Secure Core"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true

@@ -22,7 +22,7 @@ export type VulnerabilityCategory =
   | 'MEMORY_SAFETY'
   | 'CONCURRENCY_RACE'
   | 'UNSAFE_UB'
-  | 'QUANTUM_CRYPTO'
+  | 'CRYPTOGRAPHIC_FAILURES'
   | 'LEGACY_EDITION'
   | 'SUPPLY_CHAIN'
   | 'INTEGER_OVERFLOW'
@@ -105,22 +105,22 @@ export type VulnerabilityItem = RustVulnerability;
 export interface ZeroDayWaveHazard {
   id: string;
   moduleName: string;
-  spectralEntropy: number; // 0.0 - 1.0 (Harmonic disorder)
-  harmonicFrequency: string; // e.g. "4.82 GHz CFG Phase Volatility"
-  constructiveInterferenceScore: number; // 0 - 100 (compound exploit potential)
+  spectralEntropy: number; // 0.0 - 1.0 (Code complexity entropy & anomaly index)
+  harmonicFrequency: string; // e.g. "CFG Branch Volatility"
+  constructiveInterferenceScore: number; // 0 - 100 (Compound risk score)
   shockwaveBlastRadius: 'LOCAL_MODULE' | 'CRATE_BOUNDARY' | 'SYSTEM_PROCESS' | 'KERNEL_PANIC';
   theoreticalZeroDaySurface: string;
-  waveFunctionCollapseRisk: string; // Quantum-inspired phase space state divergence
-  solitonDampenerRemediation: string; // Mathematical & language-specific pattern fix
+  waveFunctionCollapseRisk: string; // Invariant violation risk
+  solitonDampenerRemediation: string; // Deterministic memory-safe remediation
   affectedLanguage?: string;
 }
 
 export interface QuantumCryptoMetrics {
-  quantumReadinessScore: number; // 0 to 100
-  shorAlgorithmVulnerability: 'SAFE' | 'VULNERABLE' | 'DEPRECATED';
-  groverResistanceBits: number; // e.g. 128, 256
-  detectedLegacyPrimitives: string[]; // e.g. ["RSA-2048", "ECDSA-secp256k1", "DH-Exchange", "MD5", "SHA-1"]
-  recommendedPqcReplacements: string[]; // e.g. ["ML-KEM-768 (Kyber)", "ML-DSA-65 (Dilithium)", "SPHINCS+"]
+  quantumReadinessScore: number; // 0 to 100 (Cryptographic posture score)
+  shorAlgorithmVulnerability: 'SAFE' | 'VULNERABLE' | 'DEPRECATED'; // Legacy cipher status (e.g., MD5/SHA1/DES)
+  groverResistanceBits: number; // e.g. 128, 256 (Effective security bits)
+  detectedLegacyPrimitives: string[]; // e.g. ["MD5", "SHA-1", "DES", "RC4", "ECB-Mode"]
+  recommendedPqcReplacements: string[]; // e.g. ["AES-256-GCM", "ChaCha20-Poly1305", "Ed25519", "Argon2id"]
   constantTimeCompliance: boolean;
   entropySourceAudit: string;
 }

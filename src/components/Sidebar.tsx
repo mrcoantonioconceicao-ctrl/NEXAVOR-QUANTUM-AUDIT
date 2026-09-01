@@ -22,6 +22,7 @@ import {
   Cpu,
   Lock,
   Workflow,
+  Key,
 } from 'lucide-react';
 import { SecurityAuditReport } from '../domain/types.ts';
 
@@ -94,11 +95,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'pqc' as TabType,
-      label: 'Post-Quantum (PQC)',
-      description: 'FIPS 203/204 & Shor',
-      icon: Cpu,
-      badge: 'PQC',
-      badgeColor: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30',
+      label: 'Auditoria Criptográfica',
+      description: 'AES, ChaCha20, Ed25519 & OWASP',
+      icon: Key,
+      badge: 'Zero Trust',
+      badgeColor: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
     },
     {
       id: 'cicd' as TabType,
@@ -126,10 +127,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'astRefactor' as TabType,
-      label: 'Refatoração AST',
-      description: 'Análise AST + Gemini IA',
+      label: 'Refatoração & MCP',
+      description: 'RustShield Engine (Rust/Go/In-Place)',
       icon: Wand2,
-      badge: 'AST + IA',
+      badge: 'Core v2.0',
       badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
     },
     {
@@ -150,10 +151,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'waves' as TabType,
-      label: 'Teoria das Ondas',
-      description: 'Análise Espectral Soliton',
+      label: 'Densidade de Risco',
+      description: 'Complexidade AST & Superfície',
       icon: Activity,
-      badge: 'Zero-Day',
+      badge: 'Espectral',
       badgeColor: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30',
     },
     {
