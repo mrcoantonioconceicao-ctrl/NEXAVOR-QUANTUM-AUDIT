@@ -375,11 +375,14 @@ export async function handleFetchGitHub(req: Request, res: Response) {
       Accept: 'application/vnd.github.v3+json',
     };
 
-    if (token && typeof token === 'string' && token.trim()) {
-      const cleanToken = token.trim();
-      headers.Authorization = cleanToken.startsWith('Bearer ') || cleanToken.startsWith('token ')
-        ? cleanToken
-        : `token ${cleanToken}`;
+    const effectiveToken = (token && typeof token === 'string' && token.trim()) 
+      ? token.trim() 
+      : (process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '').trim();
+
+    if (effectiveToken) {
+      headers.Authorization = effectiveToken.startsWith('Bearer ') || effectiveToken.startsWith('token ')
+        ? effectiveToken
+        : `Bearer ${effectiveToken}`;
     }
 
     // If a specific file path was explicitly requested (e.g. https://github.com/user/repo/blob/main/src/main.rs)

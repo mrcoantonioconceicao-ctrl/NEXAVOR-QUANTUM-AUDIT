@@ -224,7 +224,27 @@ export * from './pqc.ts';
 export * from './supplyChain.ts';
 
 
-export type WebhookEvent = 'push' | 'pull_request' | 'workflow_dispatch' | 'issue_comment';
+export type WebhookEvent = 'push' | 'pull_request' | 'workflow_dispatch' | 'issue_comment' | 'fuzz_crash' | 'workflow_run';
+
+export interface FuzzCrashAlert {
+  id: string;
+  timestamp: string;
+  target: 'ast_parser' | 'fuzz_structured_parser' | 'refactor_engine' | string;
+  issueType: 'MEMORY_CORRUPTION' | 'BUFFER_OVERFLOW' | 'PANIC_OUT_OF_BOUNDS' | 'USE_AFTER_FREE' | 'UNDEFINED_BEHAVIOR' | 'DEADLY_SIGNAL' | 'TIMEOUT_HANG' | string;
+  severity: 'CRITICAL' | 'HIGH';
+  status: 'ACTIVE_UNRESOLVED' | 'INVESTIGATING' | 'RESOLVED';
+  repoUrl: string;
+  branch: string;
+  commitSha?: string;
+  prNumber?: number;
+  workflowName: string;
+  runUrl?: string;
+  crashInputPreview?: string;
+  rawErrorLog: string;
+  stackTrace?: string[];
+  remediationAdvice: string;
+  author?: string;
+}
 
 export interface WebhookConfig {
   id: string;

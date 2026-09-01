@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, Play, FileDown, Code2, Shield, Key } from 'lucide-react';
+import { Menu, Play, FileDown, Code2, Shield, Key, AlertOctagon } from 'lucide-react';
 import { TabType } from './Sidebar.tsx';
 
 interface TopBarProps {
@@ -9,6 +9,8 @@ interface TopBarProps {
   onExportPdf: () => void;
   onExportSarif: () => void;
   onOpenTokenModal: () => void;
+  onOpenFuzzAlertModal?: () => void;
+  unresolvedFuzzAlertCount?: number;
   hasToken: boolean;
   isAuditing: boolean;
   hasReport: boolean;
@@ -17,16 +19,17 @@ interface TopBarProps {
 const TAB_TITLES: Record<TabType, { title: string; subtitle: string }> = {
   dashboard: { title: 'Dashboard Executivo', subtitle: 'Métricas e Postura de Segurança' },
   compliance: { title: 'Governança & Conformidade GRC', subtitle: 'SOC 2, ISO 27001, NIST SP 800-218, FAIR & SBOM' },
-  pqc: { title: 'Hub Criptográfico Pós-Quântico', subtitle: 'NIST FIPS 203/204/205, Shor & Algoritmos de Reticulados' },
+  pqc: { title: 'Auditoria Criptográfica & Zero Trust', subtitle: 'AES-256-GCM, ChaCha20-Poly1305, Ed25519 & Constant-Time' },
   cicd: { title: 'Pipeline Studio Multi-Cloud', subtitle: 'GitHub Actions, GitLab CI, Azure DevOps & Webhooks' },
   auditTrail: { title: 'Trilha Imutável SIEM & RBAC', subtitle: 'Livro-Razão Criptográfico e Log Stream CEF' },
   compare: { title: 'Comparador de Regressões (Diff)', subtitle: 'Detecção de Novas Vulnerabilidades vs Scan Anterior' },
   scale10k: { title: 'Cluster 10k RPS', subtitle: 'Arquitetura e Resiliência' },
-  waves: { title: 'Teoria das Ondas', subtitle: 'Análise Espectral Soliton & Zero-Days' },
+  waves: { title: 'Densidade de Risco & AST', subtitle: 'Complexidade Ciclomática e Mapeamento Espectral' },
   bpmn: { title: 'BPMN Pipeline', subtitle: 'Fluxo Formal de Auditoria' },
   review: { title: 'Code Review Workbench', subtitle: 'Remediação e Diff Estático' },
-  astRefactor: { title: 'Refatoração Legada (AST + IA)', subtitle: 'Ponte Determinística AST + Raciocínio Gemini IA' },
+  astRefactor: { title: 'Refatoração & MCP (RustShield)', subtitle: 'Hardening In-Place, Migração Rust/Go e JSON-RPC' },
   tests: { title: 'Testes de Segurança', subtitle: 'Suíte Miri e Validação Dinâmica' },
+  fuzzing: { title: 'Cargo-Fuzz & Memory Safety', subtitle: 'LibFuzzer, ASan e Análise Pericial de Corpora de Crash' },
   architecture: { title: 'Arquitetura & DDD', subtitle: 'Bounded Contexts e SOA' },
   webhooks: { title: 'Webhooks & CI/CD', subtitle: 'Gatilhos Automáticos e Auditoria em Tempo Real' },
 };
@@ -39,6 +42,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   onExportPdf,
   onExportSarif,
   onOpenTokenModal,
+  onOpenFuzzAlertModal,
+  unresolvedFuzzAlertCount = 0,
   hasToken,
   isAuditing,
   hasReport,
@@ -74,6 +79,18 @@ export const TopBar: React.FC<TopBarProps> = ({
 
       {/* Right: Quick Action Controls */}
       <div className="flex items-center space-x-2 shrink-0">
+        {/* Fuzzing Crash Webhook Alert Button */}
+        {unresolvedFuzzAlertCount > 0 && onOpenFuzzAlertModal && (
+          <button
+            onClick={onOpenFuzzAlertModal}
+            className="flex items-center gap-1.5 rounded border border-red-500/60 bg-red-950/60 px-2.5 sm:px-3 py-1.5 text-[11px] font-mono font-bold uppercase tracking-wider text-red-300 hover:bg-red-900/70 transition-all animate-pulse whitespace-nowrap shrink-0 shadow-sm shadow-red-950"
+            title="Alerta de Crash / Memory Safety detectado pelo Cargo-Fuzz no CI/CD"
+          >
+            <AlertOctagon className="h-3.5 w-3.5 text-red-400" />
+            <span>🚨 {unresolvedFuzzAlertCount} Fuzz Crash</span>
+          </button>
+        )}
+
         {/* Token GitHub Button */}
         <button
           onClick={onOpenTokenModal}

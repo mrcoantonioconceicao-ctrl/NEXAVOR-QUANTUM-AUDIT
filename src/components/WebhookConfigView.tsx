@@ -22,23 +22,35 @@ import {
   Info,
   Clock,
   Play,
+  AlertOctagon,
+  Terminal,
+  Eye,
+  ShieldAlert,
 } from 'lucide-react';
-import { WebhookConfig, WebhookDeliveryLog, WebhookEvent } from '../domain/types.ts';
+import { WebhookConfig, WebhookDeliveryLog, WebhookEvent, FuzzCrashAlert } from '../domain/types.ts';
 import { SecurityBadgeModal } from './SecurityBadgeModal.tsx';
+import { FuzzCrashAlertModal } from './FuzzCrashAlertModal.tsx';
 
 interface WebhookConfigViewProps {
   currentRepoUrl?: string;
   onTriggerAuditFromWebhook?: (repoUrl: string, branch: string) => void;
+  onNavigateToTests?: () => void;
+  onNavigateToRefactor?: () => void;
   showNotification: (msg: string) => void;
 }
 
 export const WebhookConfigView: React.FC<WebhookConfigViewProps> = ({
   currentRepoUrl = 'https://github.com/user/repository',
   onTriggerAuditFromWebhook,
+  onNavigateToTests,
+  onNavigateToRefactor,
   showNotification,
 }) => {
   const [configs, setConfigs] = useState<WebhookConfig[]>([]);
   const [deliveries, setDeliveries] = useState<WebhookDeliveryLog[]>([]);
+  const [fuzzAlerts, setFuzzAlerts] = useState<FuzzCrashAlert[]>([]);
+  const [selectedFuzzAlert, setSelectedFuzzAlert] = useState<FuzzCrashAlert | null>(null);
+  const [isFuzzModalOpen, setIsFuzzModalOpen] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
   const [isBadgeModalOpen, setIsBadgeModalOpen] = useState<boolean>(false);
 
@@ -49,6 +61,7 @@ export const WebhookConfigView: React.FC<WebhookConfigViewProps> = ({
   const [selectedEvents, setSelectedEvents] = useState<WebhookEvent[]>(['push', 'pull_request']);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [copiedUrl, setCopiedUrl] = useState<boolean>(false);
+  const [copiedFuzzUrl, setCopiedFuzzUrl] = useState<boolean>(false);
   const [copiedSecret, setCopiedSecret] = useState<boolean>(false);
 
   // Simulation states
@@ -56,18 +69,24 @@ export const WebhookConfigView: React.FC<WebhookConfigViewProps> = ({
   const [simMessage, setSimMessage] = useState<string>('feat(pqc): implement Kyber ML-KEM post-quantum key exchange');
   const [simAuthor, setSimAuthor] = useState<string>('sec-architect');
   const [isSimulating, setIsSimulating] = useState<boolean>(false);
+  const [simFuzzTarget, setSimFuzzTarget] = useState<'ast_parser' | 'fuzz_structured_parser' | 'refactor_engine'>('ast_parser');
+  const [isSimulatingFuzz, setIsSimulatingFuzz] = useState<boolean>(false);
 
   const webhookEndpointUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/api/webhooks/github`
     : 'https://qaudit.ai/api/webhooks/github';
 
+  const fuzzWebhookEndpointUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/api/webhooks/fuzz-alert`
+    : 'https://qaudit.ai/api/webhooks/fuzz-alert';
+
   const fullWebhookPayloadUrl = `${webhookEndpointUrl}?secret=${secret}`;
 
-  // Fetch configs and deliveries on mount
+  // Fetch configs, deliveries and fuzz alerts on mount
   useEffect(() => {
     fetchData();
 
-    // Setup SSE listener for real-time deliveries!
+    // Setup SSE listener for real-time deliveries & fuzz alerts!
     let eventSource: EventSource | null = null;
     try {
       eventSource = new EventSource('/api/webhooks/stream');
@@ -81,6 +100,20 @@ export const WebhookConfigView: React.FC<WebhookConfigViewProps> = ({
           }
         } catch (err) {
           console.error('Failed to parse SSE event:', err);
+        }
+      });
+
+      eventSource.addEventListener('fuzz_crash_alert', (e: any) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data?.alert) {
+            setFuzzAlerts((prev) => [data.alert, ...prev.slice(0, 29)]);
+            setSelectedFuzzAlert(data.alert);
+            setIsFuzzModalOpen(true);
+            showNotification(`🚨 ALERTA CRÍTICO: Crash de Fuzzing no parser [${data.alert.target}]!`);
+          }
+        } catch (err) {
+          console.error('Failed to parse SSE fuzz alert event:', err);
         }
       });
     } catch (err) {
@@ -97,9 +130,10 @@ export const WebhookConfigView: React.FC<WebhookConfigViewProps> = ({
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [configRes, deliveryRes] = await Promise.all([
+      const [configRes, deliveryRes, fuzzRes] = await Promise.all([
         fetch('/api/webhooks/configs').then((r) => r.json()).catch(() => ({ configs: [] })),
         fetch('/api/webhooks/deliveries').then((r) => r.json()).catch(() => ({ deliveries: [] })),
+        fetch('/api/webhooks/fuzz-alerts').then((r) => r.json()).catch(() => ({ alerts: [] })),
       ]);
 
       if (configRes.configs && Array.isArray(configRes.configs)) {
@@ -115,11 +149,52 @@ export const WebhookConfigView: React.FC<WebhookConfigViewProps> = ({
       if (deliveryRes.deliveries && Array.isArray(deliveryRes.deliveries)) {
         setDeliveries(deliveryRes.deliveries);
       }
+
+      if (fuzzRes.alerts && Array.isArray(fuzzRes.alerts)) {
+        setFuzzAlerts(fuzzRes.alerts);
+      }
     } catch (err) {
       console.error('Failed to load webhook data:', err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSimulateFuzzCrash = async () => {
+    setIsSimulatingFuzz(true);
+    try {
+      const res = await fetch('/api/webhooks/simulate-fuzz-crash', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          target: simFuzzTarget,
+          issueType: 'MEMORY_CORRUPTION',
+          repoUrl,
+          branch: 'main',
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success && data.alert) {
+        setFuzzAlerts((prev) => [data.alert, ...prev]);
+        setSelectedFuzzAlert(data.alert);
+        setIsFuzzModalOpen(true);
+        showNotification(`🚨 Webhook de Crash em '${simFuzzTarget}' disparado com sucesso!`);
+      } else {
+        showNotification(`Erro ao simular alerta: ${data.error || 'Desconhecido'}`);
+      }
+    } catch (err: any) {
+      showNotification(`Falha na simulação: ${err.message}`);
+    } finally {
+      setIsSimulatingFuzz(false);
+    }
+  };
+
+  const handleResolveAlert = (alertId: string) => {
+    setFuzzAlerts((prev) =>
+      prev.map((a) => (a.id === alertId ? { ...a, status: 'RESOLVED' as const } : a))
+    );
+    showNotification('Alerta de fuzzing marcado como ciente/resolvido.');
   };
 
   const handleGenerateSecret = () => {
@@ -632,6 +707,168 @@ export const WebhookConfigView: React.FC<WebhookConfigViewProps> = ({
         </div>
       </div>
 
+      {/* Fuzzing CI/CD & Memory Safety Alert Mechanism Section */}
+      <div className="rounded-lg border border-red-900/60 bg-red-950/20 p-5 space-y-4 shadow-sm shadow-red-950/40">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-red-900/40 font-mono">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-7 w-7 items-center justify-center rounded bg-red-500/20 border border-red-500/40 text-red-400">
+              <AlertOctagon className="h-4 w-4" />
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <span>🧪 CI/CD Fuzzing Webhook & Alertas de Crash (`cargo-fuzz`)</span>
+                <span className="rounded bg-red-500/20 px-2 py-0.5 text-[9px] text-red-300 border border-red-500/30">
+                  LibFuzzer + ASan
+                </span>
+              </h3>
+              <p className="text-[11px] text-zinc-400 font-sans">
+                Gatilho em tempo real: O pipeline do GitHub Actions notifica esta URL caso um teste de estresse identifique corrupção de memória ou pânico no parser.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-zinc-400 font-mono">
+              {fuzzAlerts.length} alertas ({fuzzAlerts.filter((a) => a.status === 'ACTIVE_UNRESOLVED').length} ativos)
+            </span>
+          </div>
+        </div>
+
+        {/* Fuzz Webhook Endpoint & Simulation Bar */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          {/* Endpoint display with copy button */}
+          <div className="lg:col-span-7 space-y-2">
+            <label className="block text-[11px] font-mono font-bold text-zinc-300 uppercase tracking-wide">
+              Endpoint de Alerta para o GitHub Workflow (`fuzzing.yml`)
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                readOnly
+                value={fuzzWebhookEndpointUrl}
+                className="w-full px-3 py-2 bg-zinc-950 border border-red-900/60 rounded text-xs font-mono text-red-300 focus:outline-none select-all"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(fuzzWebhookEndpointUrl);
+                  setCopiedFuzzUrl(true);
+                  setTimeout(() => setCopiedFuzzUrl(false), 2000);
+                  showNotification('URL de webhook de fuzzing copiada!');
+                }}
+                className="px-3 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-mono text-xs flex items-center gap-1.5 shrink-0 transition-colors"
+                title="Copiar URL"
+              >
+                {copiedFuzzUrl ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                <span>Copiar</span>
+              </button>
+            </div>
+            <p className="text-[10px] text-zinc-500 font-mono">
+              Chamado no step <code>if: failure()</code> do workflow com o trace do LibFuzzer e corpus mutado.
+            </p>
+          </div>
+
+          {/* Simulation Trigger Box */}
+          <div className="lg:col-span-5 rounded border border-red-900/40 bg-black/40 p-3 space-y-2 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-mono font-bold text-red-400 uppercase tracking-wide flex items-center gap-1">
+                <Zap className="h-3 w-3" />
+                Testar Alerta de Crash
+              </span>
+              <select
+                value={simFuzzTarget}
+                onChange={(e: any) => setSimFuzzTarget(e.target.value)}
+                className="bg-zinc-900 border border-zinc-700 text-zinc-200 text-[10px] font-mono rounded px-2 py-1 focus:outline-none"
+              >
+                <option value="ast_parser">Target: ast_parser</option>
+                <option value="fuzz_structured_parser">Target: fuzz_structured_parser</option>
+                <option value="refactor_engine">Target: refactor_engine</option>
+              </select>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleSimulateFuzzCrash}
+              disabled={isSimulatingFuzz}
+              className="w-full py-2 px-3 rounded bg-red-600 hover:bg-red-500 text-white font-mono font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md shadow-red-950 disabled:opacity-50"
+            >
+              {isSimulatingFuzz ? (
+                <>
+                  <span className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Transmitindo Webhook...</span>
+                </>
+              ) : (
+                <>
+                  <AlertOctagon className="h-3.5 w-3.5" />
+                  <span>⚡ Simular Webhook de Crash (`cargo-fuzz`)</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Fuzz Alerts Mini Table */}
+        {fuzzAlerts.length > 0 && (
+          <div className="mt-3 overflow-x-auto rounded border border-red-950 bg-black/60">
+            <table className="w-full text-left font-mono text-xs">
+              <thead>
+                <tr className="border-b border-red-950 text-[10px] uppercase text-zinc-500 bg-red-950/20">
+                  <th className="py-2 px-3">Status</th>
+                  <th className="py-2 px-3">Target</th>
+                  <th className="py-2 px-3">Classificação</th>
+                  <th className="py-2 px-3">Branch / Commit</th>
+                  <th className="py-2 px-3">Horário</th>
+                  <th className="py-2 px-3 text-right">Ação</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-red-950/60">
+                {fuzzAlerts.slice(0, 5).map((alt) => (
+                  <tr key={alt.id} className="hover:bg-red-950/30 transition-colors">
+                    <td className="py-2.5 px-3">
+                      {alt.status === 'ACTIVE_UNRESOLVED' ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded bg-red-950 text-red-400 border border-red-500/40 animate-pulse">
+                          <AlertOctagon className="h-3 w-3 text-red-400" />
+                          ATIVO
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded bg-zinc-800 text-zinc-400">
+                          <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                          RESOLVIDO
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3 font-bold text-zinc-200">
+                      <code>{alt.target}</code>
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <span className="text-red-300 font-mono text-[11px]">{alt.issueType}</span>
+                    </td>
+                    <td className="py-2.5 px-3 text-zinc-400 text-[11px]">
+                      {alt.branch} {alt.commitSha ? `[${alt.commitSha.substring(0, 7)}]` : ''}
+                    </td>
+                    <td className="py-2.5 px-3 text-zinc-500 text-[10px]">
+                      {new Date(alt.timestamp).toLocaleTimeString('pt-BR')}
+                    </td>
+                    <td className="py-2.5 px-3 text-right">
+                      <button
+                        onClick={() => {
+                          setSelectedFuzzAlert(alt);
+                          setIsFuzzModalOpen(true);
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-mono text-[10px] transition-colors"
+                      >
+                        <Eye className="h-3 w-3 text-red-400" />
+                        <span>Inspecionar</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       {/* Real-time Delivery History Table */}
       <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-5 space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-zinc-800 font-mono">
@@ -732,6 +969,15 @@ export const WebhookConfigView: React.FC<WebhookConfigViewProps> = ({
         isOpen={isBadgeModalOpen}
         onClose={() => setIsBadgeModalOpen(false)}
         showNotification={showNotification}
+      />
+
+      <FuzzCrashAlertModal
+        isOpen={isFuzzModalOpen}
+        alert={selectedFuzzAlert}
+        onClose={() => setIsFuzzModalOpen(false)}
+        onNavigateToTests={onNavigateToTests}
+        onNavigateToRefactor={onNavigateToRefactor}
+        onResolveAlert={handleResolveAlert}
       />
     </div>
   );

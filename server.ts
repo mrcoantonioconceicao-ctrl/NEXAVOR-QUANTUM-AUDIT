@@ -12,6 +12,9 @@ import {
   handleIncomingGitHubWebhook,
   handleSimulateWebhook,
   handleWebhookStream,
+  handleGetFuzzAlerts,
+  handleFuzzCrashAlert,
+  handleSimulateFuzzCrashAlert,
 } from './server/webhooks';
 
 import { handleBadgeSvg } from './server/badgeGenerator';
@@ -59,6 +62,11 @@ async function startServer() {
   app.post('/api/webhooks/github', handleIncomingGitHubWebhook);
   app.post('/api/webhooks/simulate', handleSimulateWebhook);
   app.get('/api/webhooks/stream', handleWebhookStream);
+
+  // Cargo-Fuzz Continuous CI/CD Memory Safety Alert Endpoints
+  app.get('/api/webhooks/fuzz-alerts', handleGetFuzzAlerts);
+  app.post('/api/webhooks/fuzz-alert', handleFuzzCrashAlert);
+  app.post('/api/webhooks/simulate-fuzz-crash', handleSimulateFuzzCrashAlert);
 
   // Dynamic SVG Badge Generation Route
   app.get('/api/badge/shield.svg', handleBadgeSvg);

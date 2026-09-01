@@ -17,8 +17,11 @@ import { ComplianceGovernanceHub } from './components/ComplianceGovernanceHub.ts
 import { QuantumPqcHub } from './components/QuantumPqcHub.tsx';
 import { EnterpriseCiCdStudio } from './components/EnterpriseCiCdStudio.tsx';
 import { EnterpriseAuditTrail } from './components/EnterpriseAuditTrail.tsx';
+import { FuzzCrashBanner } from './components/FuzzCrashBanner.tsx';
+import { FuzzCrashAlertModal } from './components/FuzzCrashAlertModal.tsx';
+import { FuzzingDashboard } from './components/FuzzingDashboard.tsx';
 import { getStoredGitHubToken } from './services/tokenStorage.ts';
-import { SecurityAuditReport, BpmnStep } from './domain/types.ts';
+import { SecurityAuditReport, BpmnStep, FuzzCrashAlert } from './domain/types.ts';
 
 import { INITIAL_BPMN_STEPS, advanceBpmnStep } from './domain/bpmnWorkflow.ts';
 import { BENCHMARK_CASES } from './domain/benchmarks.ts';
@@ -41,6 +44,12 @@ export default function App() {
   const [isTokenModalOpen, setIsTokenModalOpen] = useState<boolean>(false);
   const [currentGitHubToken, setCurrentGitHubToken] = useState<string>(() => getStoredGitHubToken());
 
+  // Fuzzing CI/CD Crash Alerts Global State
+  const [fuzzAlerts, setFuzzAlerts] = useState<FuzzCrashAlert[]>([]);
+  const [activeFuzzAlert, setActiveFuzzAlert] = useState<FuzzCrashAlert | null>(null);
+  const [isFuzzModalOpen, setIsFuzzModalOpen] = useState<boolean>(false);
+  const [isFuzzBannerDismissed, setIsFuzzBannerDismissed] = useState<boolean>(false);
+
   // Load existing session history on mount from LocalStorage and sync with Firebase Firestore
   useEffect(() => {
     const history = getAuditHistory();
@@ -57,6 +66,50 @@ export default function App() {
         setReport(synced[0].report);
       }
     });
+
+    // Fetch initial Fuzzing Crash alerts
+    fetch('/api/webhooks/fuzz-alerts')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.alerts && Array.isArray(data.alerts)) {
+          setFuzzAlerts(data.alerts);
+          const firstUnresolved = data.alerts.find((a: FuzzCrashAlert) => a.status === 'ACTIVE_UNRESOLVED');
+          if (firstUnresolved) {
+            setActiveFuzzAlert(firstUnresolved);
+          }
+        }
+      })
+      .catch((err) => console.warn('Could not fetch initial fuzz alerts:', err));
+
+    // Global SSE stream listener for real-time Webhook & Fuzzing Crash notifications
+    let eventSource: EventSource | null = null;
+    try {
+      eventSource = new EventSource('/api/webhooks/stream');
+
+      eventSource.addEventListener('fuzz_crash_alert', (e: any) => {
+        try {
+          const payload = JSON.parse(e.data);
+          if (payload?.alert) {
+            setFuzzAlerts((prev) => [payload.alert, ...prev.slice(0, 29)]);
+            setActiveFuzzAlert(payload.alert);
+            setIsFuzzBannerDismissed(false);
+            showNotification(
+              `🚨 ALERTA CRÍTICO CI/CD: Cargo-Fuzz detectou Memory Safety Issue no parser (${payload.alert.target})!`
+            );
+          }
+        } catch (err) {
+          console.error('Failed to parse SSE fuzz alert:', err);
+        }
+      });
+    } catch (err) {
+      console.warn('SSE not supported or connection error:', err);
+    }
+
+    return () => {
+      if (eventSource) {
+        eventSource.close();
+      }
+    };
   }, []);
 
   const showNotification = (msg: string) => {
@@ -206,12 +259,22 @@ export default function App() {
         onNewAudit={handleScrollToTopForNewAudit}
         onExportPdf={handleExportPdf}
         onExportSarif={handleExportSarif}
+        unresolvedFuzzAlertCount={fuzzAlerts.filter((a) => a.status === 'ACTIVE_UNRESOLVED').length}
         isAuditing={isAuditing}
         report={report}
       />
 
       {/* Main Content View with Top Header */}
       <div className="flex flex-1 flex-col min-w-0 h-full overflow-hidden">
+        {/* Real-time Fuzz Crash Alert Banner */}
+        {!isFuzzBannerDismissed && activeFuzzAlert && activeFuzzAlert.status === 'ACTIVE_UNRESOLVED' && (
+          <FuzzCrashBanner
+            alert={activeFuzzAlert}
+            onOpenDetails={() => setIsFuzzModalOpen(true)}
+            onDismiss={() => setIsFuzzBannerDismissed(true)}
+          />
+        )}
+
         {/* Streamlined Top Header */}
         <TopBar
           activeTab={activeTab}
@@ -220,6 +283,8 @@ export default function App() {
           onExportPdf={handleExportPdf}
           onExportSarif={handleExportSarif}
           onOpenTokenModal={() => setIsTokenModalOpen(true)}
+          onOpenFuzzAlertModal={() => setIsFuzzModalOpen(true)}
+          unresolvedFuzzAlertCount={fuzzAlerts.filter((a) => a.status === 'ACTIVE_UNRESOLVED').length}
           hasToken={Boolean(currentGitHubToken)}
           isAuditing={isAuditing}
           hasReport={!!report}
@@ -317,6 +382,45 @@ export default function App() {
                 />
               )}
 
+              {activeTab === 'fuzzing' && (
+                <FuzzingDashboard
+                  fuzzAlerts={fuzzAlerts}
+                  onTriggerSimulateFuzz={(target) => {
+                    fetch('/api/webhooks/simulate-fuzz-crash', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        target,
+                        issueType: 'MEMORY_CORRUPTION',
+                        repoUrl: report?.targetRepo?.url || 'https://github.com/user/repository',
+                      }),
+                    })
+                      .then((r) => r.json())
+                      .then((data) => {
+                        if (data.alert) {
+                          setFuzzAlerts((prev) => [data.alert, ...prev]);
+                          setActiveFuzzAlert(data.alert);
+                          setIsFuzzBannerDismissed(false);
+                          showNotification(`🚨 Webhook de Crash em '${target}' recebido com sucesso!`);
+                        }
+                      })
+                      .catch((err) => showNotification(`Erro: ${err.message}`));
+                  }}
+                  onNavigateToTests={() => setActiveTab('tests')}
+                  onNavigateToRefactor={() => setActiveTab('astRefactor')}
+                  onResolveAlert={(id) => {
+                    setFuzzAlerts((prev) =>
+                      prev.map((a) => (a.id === id ? { ...a, status: 'RESOLVED' as const } : a))
+                    );
+                    if (activeFuzzAlert?.id === id) {
+                      setActiveFuzzAlert(null);
+                    }
+                    showNotification('Alerta de crash marcado como resolvido.');
+                  }}
+                  showNotification={showNotification}
+                />
+              )}
+
               {activeTab === 'architecture' && <ArchitectureDocsModal />}
 
               {activeTab === 'webhooks' && (
@@ -325,6 +429,8 @@ export default function App() {
                   onTriggerAuditFromWebhook={(url) => {
                     handleStartAuditWithUrl(url, undefined, 'FULL_REPO');
                   }}
+                  onNavigateToTests={() => setActiveTab('tests')}
+                  onNavigateToRefactor={() => setActiveTab('astRefactor')}
                   showNotification={showNotification}
                 />
               )}
@@ -334,6 +440,43 @@ export default function App() {
             <ComplianceGovernanceHub report={null} />
           ) : activeTab === 'pqc' ? (
             <QuantumPqcHub report={null} />
+          ) : activeTab === 'fuzzing' ? (
+            <FuzzingDashboard
+              fuzzAlerts={fuzzAlerts}
+              onTriggerSimulateFuzz={(target) => {
+                fetch('/api/webhooks/simulate-fuzz-crash', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    target,
+                    issueType: 'MEMORY_CORRUPTION',
+                    repoUrl: 'https://github.com/mrcoantonioconceicao-ctrl/Atolada-anchor',
+                  }),
+                })
+                  .then((r) => r.json())
+                  .then((data) => {
+                    if (data.alert) {
+                      setFuzzAlerts((prev) => [data.alert, ...prev]);
+                      setActiveFuzzAlert(data.alert);
+                      setIsFuzzBannerDismissed(false);
+                      showNotification(`🚨 Webhook de Crash em '${target}' recebido com sucesso!`);
+                    }
+                  })
+                  .catch((err) => showNotification(`Erro: ${err.message}`));
+              }}
+              onNavigateToTests={() => setActiveTab('tests')}
+              onNavigateToRefactor={() => setActiveTab('astRefactor')}
+              onResolveAlert={(id) => {
+                setFuzzAlerts((prev) =>
+                  prev.map((a) => (a.id === id ? { ...a, status: 'RESOLVED' as const } : a))
+                );
+                if (activeFuzzAlert?.id === id) {
+                  setActiveFuzzAlert(null);
+                }
+                showNotification('Alerta de crash marcado como resolvido.');
+              }}
+              showNotification={showNotification}
+            />
           ) : activeTab === 'cicd' ? (
             <EnterpriseCiCdStudio report={null} />
           ) : activeTab === 'auditTrail' ? (
@@ -349,6 +492,8 @@ export default function App() {
               onTriggerAuditFromWebhook={(url) => {
                 handleStartAuditWithUrl(url, undefined, 'FULL_REPO');
               }}
+              onNavigateToTests={() => setActiveTab('tests')}
+              onNavigateToRefactor={() => setActiveTab('astRefactor')}
               showNotification={showNotification}
             />
           ) : (
@@ -373,6 +518,24 @@ export default function App() {
           <span className="hidden md:inline">Engine // Native Rust 1.70+</span>
         </footer>
       </div>
+
+      {/* Global Fuzz Crash Memory Safety Alert Modal */}
+      <FuzzCrashAlertModal
+        isOpen={isFuzzModalOpen}
+        alert={activeFuzzAlert}
+        onClose={() => setIsFuzzModalOpen(false)}
+        onNavigateToTests={() => setActiveTab('tests')}
+        onNavigateToRefactor={() => setActiveTab('astRefactor')}
+        onResolveAlert={(id) => {
+          setFuzzAlerts((prev) =>
+            prev.map((a) => (a.id === id ? { ...a, status: 'RESOLVED' as const } : a))
+          );
+          if (activeFuzzAlert?.id === id) {
+            setActiveFuzzAlert(null);
+          }
+          showNotification('Alerta de crash marcado como resolvido.');
+        }}
+      />
 
       {/* GitHub Personal Access Token Modal */}
       <GitHubTokenModal

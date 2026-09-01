@@ -1,0 +1,89 @@
+name: Continuous Fuzz Testing
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'rustshield-core/**'
+      - '.github/workflows/fuzzing.yml'
+  pull_request:
+    branches: [ main, master ]
+    paths:
+      - 'rustshield-core/**'
+      - '.github/workflows/fuzzing.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fuzz:
+    name: LibFuzzer Stress & Memory Safety
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [ ast_parser, refactor_engine, fuzz_structured_parser ]
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Install Rust Nightly Toolchain
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Cache Cargo Dependencies and Fuzz Corpus
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/cargo-fuzz
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            rustshield-core/target/
+            rustshield-core/fuzz/corpus/
+          key: ${{ runner.os }}-fuzz-${{ matrix.target }}-${{ hashFiles('rustshield-core/**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-fuzz-${{ matrix.target }}-
+            ${{ runner.os }}-fuzz-
+
+      - name: Install cargo-fuzz
+        run: |
+          which cargo-fuzz || cargo install cargo-fuzz
+
+      - name: Run Fuzzing Target (${{ matrix.target }})
+        working-directory: ./rustshield-core
+        run: |
+          echo "Iniciando teste de estresse contínuo com cargo-fuzz para ${{ matrix.target }}..."
+          cargo +nightly fuzz run ${{ matrix.target }} -- -max_total_time=120 -max_len=65536 -timeout=25
+
+      - name: Archive Crash Artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-artifacts-${{ matrix.target }}
+          path: |
+            rustshield-core/fuzz/artifacts/${{ matrix.target }}/
+            rustshield-core/fuzz/corpus/${{ matrix.target }}/
+          retention-days: 14
+
+      - name: Send Webhook Alert on Memory Safety Crash
+        if: failure()
+        run: |
+          echo "Disparando webhook de alerta de crash no parser para o RustShield..."
+          CRASH_LOG="Falha detectada durante execução do target '${{ matrix.target }}'. Possível AddressSanitizer / Buffer Overflow / Panic sob entrada maliciosa."
+          
+          curl -s -X POST "${{ secrets.RUSTSHIELD_WEBHOOK_URL || 'https://ais-dev-r6bdea5regrbdpnan3rfi2-385239450740.us-east5.run.app/api/webhooks/fuzz-alert' }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"target\": \"${{ matrix.target }}\",
+              \"issueType\": \"MEMORY_CORRUPTION\",
+              \"severity\": \"CRITICAL\",
+              \"repoUrl\": \"${{ github.server_url }}/${{ github.repository }}\",
+              \"branch\": \"${{ github.ref_name }}\",
+              \"commitSha\": \"${{ github.sha }}\",
+              \"workflowName\": \"Continuous Fuzz Testing (LibFuzzer)\",
+              \"runUrl\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\",
+              \"rawErrorLog\": \"CRITICAL: cargo-fuzz detected deadly signal / memory corruption in target '${{ matrix.target }}'\",
+              \"remediationAdvice\": \"Verificar bounds checking no parser AST, assegurar tratamento com Result<T, E> e isolar ponteiros brutos em RAII.\",
+              \"author\": \"${{ github.actor }}\"
+            }" || true
+

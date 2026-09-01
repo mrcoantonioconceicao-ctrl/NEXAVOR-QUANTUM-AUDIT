@@ -17,7 +17,7 @@ export interface WebhookConfigData {
 export interface WebhookDeliveryData {
   id: string;
   timestamp: string;
-  event: 'push' | 'pull_request' | 'workflow_run' | 'release' | 'ping';
+  event: 'push' | 'pull_request' | 'workflow_run' | 'release' | 'ping' | 'fuzz_crash';
   repoUrl: string;
   branch: string;
   commitSha?: string;
@@ -36,11 +36,34 @@ export interface WebhookDeliveryData {
   auditDetails?: any;
 }
 
+export interface FuzzCrashAlertData {
+  id: string;
+  timestamp: string;
+  target: 'ast_parser' | 'fuzz_structured_parser' | 'refactor_engine' | string;
+  issueType: 'MEMORY_CORRUPTION' | 'BUFFER_OVERFLOW' | 'PANIC_OUT_OF_BOUNDS' | 'USE_AFTER_FREE' | 'UNDEFINED_BEHAVIOR' | 'DEADLY_SIGNAL' | 'TIMEOUT_HANG' | string;
+  severity: 'CRITICAL' | 'HIGH';
+  status: 'ACTIVE_UNRESOLVED' | 'INVESTIGATING' | 'RESOLVED';
+  repoUrl: string;
+  branch: string;
+  commitSha?: string;
+  prNumber?: number;
+  workflowName: string;
+  runUrl?: string;
+  crashInputPreview?: string;
+  rawErrorLog: string;
+  stackTrace?: string[];
+  remediationAdvice: string;
+  author?: string;
+}
+
 // In-Memory store for Webhook Configurations
 const webhookConfigs: Map<string, WebhookConfigData> = new Map();
 
 // In-Memory store for Webhook Deliveries Log
 const webhookDeliveries: WebhookDeliveryData[] = [];
+
+// In-Memory store for Fuzzing Memory Safety Alerts
+const fuzzCrashAlerts: FuzzCrashAlertData[] = [];
 
 // SSE connected clients
 const sseClients: Set<Response> = new Set();
@@ -111,6 +134,36 @@ webhookDeliveries.push(
     durationMs: 14,
   }
 );
+
+// Seed initial historical Fuzz Crash alert for immediate verification & testing
+fuzzCrashAlerts.push({
+  id: 'fuzz_alt_9941a0',
+  timestamp: new Date(Date.now() - 3600000 * 2).toISOString(),
+  target: 'ast_parser',
+  issueType: 'MEMORY_CORRUPTION',
+  severity: 'CRITICAL',
+  status: 'ACTIVE_UNRESOLVED',
+  repoUrl: 'https://github.com/mrcoantonioconceicao-ctrl/Atolada-anchor',
+  branch: 'main',
+  commitSha: 'e92f1b4',
+  prNumber: 58,
+  workflowName: 'Continuous Fuzz Testing (LibFuzzer)',
+  runUrl: 'https://github.com/mrcoantonioconceicao-ctrl/Atolada-anchor/actions/runs/1429851',
+  crashInputPreview: '5c 78 30 30 72 75 73 74 5f 74 61 72 67 65 74 21 28 5b 75 6e 73 61 66 65 20 7b 20 2a 28 30 78 64 65 61 64 62 65 65 66 20 61 73 20 2a 6d 75 74 20 75 38 29 20 3d 20 34 32 3b 20 7d 5d 29',
+  rawErrorLog: `==14892==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x6030000001f4
+READ of size 8 at 0x6030000001f4 thread T0
+    #0 0x55d78a1f rustshield_infrastructure::NativeAstEngine::scan_source_file (/rustshield-core/crates/infrastructure/src/ast/parser.rs:42)
+    #1 0x55d78a99 rustshield_fuzz::fuzz_targets::ast_parser (/rustshield-core/fuzz/fuzz_targets/ast_parser.rs:16)
+    #2 0x55d79100 fuzzer::Fuzzer::ExecuteCallback(unsigned char const*, unsigned long)
+SUMMARY: AddressSanitizer: heap-buffer-overflow (/rustshield-core/crates/infrastructure/src/ast/parser.rs:42) in NativeAstEngine`,
+  stackTrace: [
+    'rustshield_infrastructure::NativeAstEngine::scan_source_file at parser.rs:42:15',
+    'rustshield_domain::SourceFile::new at domain/src/lib.rs:18:9',
+    'libfuzzer_sys::fuzz_target at fuzz_targets/ast_parser.rs:16:21',
+  ],
+  remediationAdvice: 'Substituir acesso de slice direto indexado por métodos seguros `.get()` com verificação de limites (bounds-checking) e isolar ponteiros brutos dentro de encapsulamento RAII estrito.',
+  author: 'mrcoantonioconceicao-ctrl',
+});
 
 // Broadcast event to all connected SSE clients
 function broadcastEvent(eventType: string, data: any) {
@@ -330,6 +383,164 @@ export async function handleSimulateWebhook(req: Request, res: Response) {
   } catch (error: any) {
     return res.status(500).json({ error: 'Falha ao simular envio de webhook.', details: error?.message });
   }
+}
+
+// GET /api/webhooks/fuzz-alerts
+export function handleGetFuzzAlerts(_req: Request, res: Response) {
+  return res.json({
+    success: true,
+    alerts: fuzzCrashAlerts,
+    unresolvedCount: fuzzCrashAlerts.filter((a) => a.status === 'ACTIVE_UNRESOLVED').length,
+  });
+}
+
+// POST /api/webhooks/fuzz-alert - Dedicated endpoint for CI/CD cargo-fuzz crash webhooks
+export function handleFuzzCrashAlert(req: Request, res: Response) {
+  try {
+    const startTime = Date.now();
+    const {
+      target = 'ast_parser',
+      issueType = 'MEMORY_CORRUPTION',
+      severity = 'CRITICAL',
+      repoUrl = 'https://github.com/mrcoantonioconceicao-ctrl/Atolada-anchor',
+      branch = 'main',
+      commitSha = crypto.randomBytes(4).toString('hex'),
+      prNumber,
+      workflowName = 'Continuous Fuzz Testing (LibFuzzer)',
+      runUrl,
+      crashInputPreview,
+      rawErrorLog,
+      stackTrace,
+      remediationAdvice,
+      author = 'sec-ci-bot',
+    } = req.body;
+
+    const alertId = `fuzz_alt_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+    const defaultLog = rawErrorLog || `==${Math.floor(Math.random() * 90000 + 10000)}==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x6030000001f4
+READ of size 8 at 0x6030000001f4 thread T0
+    #0 0x55d78a1f rustshield_infrastructure::NativeAstEngine::scan_source_file (/rustshield-core/crates/infrastructure/src/ast/parser.rs:42)
+    #1 0x55d78a99 rustshield_fuzz::fuzz_targets::${target} (/rustshield-core/fuzz/fuzz_targets/${target}.rs:16)
+SUMMARY: AddressSanitizer: heap-buffer-overflow (/rustshield-core/crates/infrastructure/src/ast/parser.rs:42) in NativeAstEngine`;
+
+    const defaultStackTrace = stackTrace && Array.isArray(stackTrace) ? stackTrace : [
+      `rustshield_infrastructure::NativeAstEngine::scan_source_file at parser.rs:42:15`,
+      `rustshield_domain::SourceFile::new at domain/src/lib.rs:18:9`,
+      `libfuzzer_sys::fuzz_target at fuzz_targets/${target}.rs:16:21`,
+    ];
+
+    const alertData: FuzzCrashAlertData = {
+      id: alertId,
+      timestamp: new Date().toISOString(),
+      target,
+      issueType,
+      severity,
+      status: 'ACTIVE_UNRESOLVED',
+      repoUrl,
+      branch,
+      commitSha,
+      prNumber: prNumber ? Number(prNumber) : undefined,
+      workflowName,
+      runUrl: runUrl || `${repoUrl}/actions/runs/${Date.now()}`,
+      crashInputPreview: crashInputPreview || '5c 78 30 30 72 75 73 74 5f 74 61 72 67 65 74 21 28 5b 75 6e 73 61 66 65 20 7b 20 2a 28 30 78 64 65 61 64 62 65 65 66 20 61 73 20 2a 6d 75 74 20 75 38 29 20 3d 20 34 32 3b 20 7d 5d 29',
+      rawErrorLog: defaultLog,
+      stackTrace: defaultStackTrace,
+      remediationAdvice: remediationAdvice || 'Substituir acesso de slice direto indexado por métodos seguros `.get()` com verificação de limites (bounds-checking) e isolar ponteiros brutos dentro de encapsulamento RAII estrito.',
+      author,
+    };
+
+    // Prepend to alerts list
+    fuzzCrashAlerts.unshift(alertData);
+    if (fuzzCrashAlerts.length > 30) {
+      fuzzCrashAlerts.pop();
+    }
+
+    // Also record in webhook deliveries log
+    const deliveryLog: WebhookDeliveryData = {
+      id: `del_fuzz_${crypto.randomBytes(3).toString('hex')}`,
+      timestamp: new Date().toISOString(),
+      event: 'fuzz_crash',
+      repoUrl,
+      branch,
+      commitSha,
+      commitMessage: `🚨 Cargo-Fuzz Crash em '${target}' detectado pelo pipeline CI/CD`,
+      author,
+      status: 200,
+      auditTriggered: true,
+      vulnSummary: {
+        critical: 1,
+        high: 1,
+        medium: 0,
+        score: 35,
+      },
+      durationMs: Date.now() - startTime,
+      reportId: alertId,
+      auditDetails: {
+        fuzzAlert: alertData,
+      },
+    };
+    webhookDeliveries.unshift(deliveryLog);
+
+    // Broadcast real-time event to all connected frontends via SSE
+    broadcastEvent('fuzz_crash_alert', {
+      alert: alertData,
+      message: `🚨 ALERTA CRÍTICO: Cargo-fuzz detectou falha de Memory Safety no target '${target}' [Commit ${commitSha}]!`,
+    });
+
+    broadcastEvent('webhook_triggered', {
+      delivery: deliveryLog,
+      repoUrl,
+      branch,
+      commitSha,
+      author,
+      message: `🚨 Webhook CI/CD: Falha crítica de fuzzing em '${target}'!`,
+    });
+
+    console.warn(`[RustShield Webhook Alert] Cargo-Fuzz crash notification received for target '${target}' in repo '${repoUrl}'!`);
+
+    return res.status(200).json({
+      success: true,
+      message: `Alerta de crash de fuzzing processado com sucesso e transmitido em tempo real.`,
+      alert: alertData,
+    });
+  } catch (error: any) {
+    console.error('[RustShield Webhook Error] Falha ao processar alerta de crash:', error);
+    return res.status(500).json({ error: 'Erro ao processar alerta de fuzzing.', details: error?.message });
+  }
+}
+
+// POST /api/webhooks/simulate-fuzz-crash
+export function handleSimulateFuzzCrashAlert(req: Request, res: Response) {
+  const {
+    target = 'ast_parser',
+    issueType = 'MEMORY_CORRUPTION',
+    repoUrl = 'https://github.com/mrcoantonioconceicao-ctrl/Atolada-anchor',
+    branch = 'main',
+  } = req.body || {};
+
+  const commitSha = crypto.randomBytes(4).toString('hex');
+  const mockReq: any = {
+    body: {
+      target,
+      issueType,
+      severity: 'CRITICAL',
+      repoUrl,
+      branch,
+      commitSha,
+      prNumber: 42,
+      workflowName: 'Continuous Fuzz Testing (LibFuzzer)',
+      runUrl: `${repoUrl}/actions/runs/${Date.now()}`,
+      author: 'sec-ci-automation',
+      crashInputPreview: 'ff ff ff fe 00 00 28 29 7b 20 75 6e 73 61 66 65 20 2a 28 73 74 72 2e 61 73 5f 70 74 72 28 29 20 2b 20 39 39 39 39 39 29 20 7d',
+      rawErrorLog: `==28491==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x6080000000f0
+READ of size 8 at 0x6080000000f0 thread T0
+    #0 0x5612f0a1 rustshield_infrastructure::NativeAstEngine::scan_source_file (/rustshield-core/crates/infrastructure/src/ast/parser.rs:48)
+    #1 0x5612f10b rustshield_fuzz::fuzz_targets::${target} (/rustshield-core/fuzz/fuzz_targets/${target}.rs:14)
+SUMMARY: AddressSanitizer: heap-buffer-overflow (/rustshield-core/crates/infrastructure/src/ast/parser.rs:48) in NativeAstEngine`,
+      remediationAdvice: `Garantir validação estrita de limites de fatia (slice bounds) no parser ${target} e encapsular buffers de entrada em tipos seguros não-mutáveis.`,
+    },
+  };
+
+  return handleFuzzCrashAlert(mockReq, res);
 }
 
 // GET /api/webhooks/stream (Server-Sent Events)

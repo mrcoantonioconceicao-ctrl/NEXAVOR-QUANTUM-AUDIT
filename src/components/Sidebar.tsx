@@ -23,11 +23,13 @@ import {
   Lock,
   Workflow,
   Key,
+  Flame,
 } from 'lucide-react';
 import { SecurityAuditReport } from '../domain/types.ts';
 
 export type TabType =
   | 'dashboard'
+  | 'fuzzing'
   | 'compliance'
   | 'pqc'
   | 'cicd'
@@ -53,6 +55,7 @@ interface SidebarProps {
   onNewAudit: () => void;
   onExportPdf: () => void;
   onExportSarif: () => void;
+  unresolvedFuzzAlertCount?: number;
   isAuditing: boolean;
   report: SecurityAuditReport | null;
 }
@@ -67,6 +70,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onNewAudit,
   onExportPdf,
   onExportSarif,
+  unresolvedFuzzAlertCount = 0,
   isAuditing,
   report,
 }) => {
@@ -170,6 +174,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Terminal,
       badge: testCount > 0 ? `${testCount}` : undefined,
       badgeColor: 'bg-zinc-800 text-zinc-300',
+    },
+    {
+      id: 'fuzzing' as TabType,
+      label: 'Fuzzing & ASan',
+      description: 'Cargo-Fuzz & Crash Corpora',
+      icon: Flame,
+      badge: unresolvedFuzzAlertCount > 0 ? `🚨 ${unresolvedFuzzAlertCount} Alert` : 'LibFuzzer',
+      badgeColor: unresolvedFuzzAlertCount > 0 ? 'bg-red-500/20 text-red-400 border-red-500/40 animate-pulse' : 'bg-red-500/10 text-red-300 border-red-500/20',
     },
     {
       id: 'architecture' as TabType,
