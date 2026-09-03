@@ -385,6 +385,135 @@ export const AuditDashboard: React.FC<AuditDashboardProps> = ({
         </div>
       </div>
 
+      {/* Real AST Engine Metrics: Cyclomatic Complexity & Memory Safety */}
+      {report.astMetrics && (
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-4 shadow-sm">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-zinc-800 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded bg-emerald-950/60 border border-emerald-500/30 text-emerald-400">
+                <FileCode className="h-4 w-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono font-bold text-white uppercase tracking-wider">
+                    Métricas de AST & Análise Estática Real de Código
+                  </span>
+                  <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold uppercase">
+                    Zero Mock // Heurística AST
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-400 font-sans mt-0.5">
+                  Métricas extraídas diretamente da sintaxe, ramificações e chamadas de memória do código-fonte.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-xs font-mono text-zinc-400">
+              <span>{report.totalLinesAudited} Linhas de Código</span>
+              <span className="text-zinc-600">•</span>
+              <span>{report.filesAudited.length} Arquivos Auditados</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3.5">
+            {/* Cyclomatic Complexity Card */}
+            <div className="p-3 rounded bg-zinc-950/70 border border-zinc-800/80">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 mb-1 flex items-center justify-between">
+                <span>Complexidade Ciclomática</span>
+                <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold ${
+                  report.astMetrics.cyclomaticComplexity.riskLevel === 'LOW'
+                    ? 'bg-emerald-900/50 text-emerald-400 border border-emerald-500/30'
+                    : report.astMetrics.cyclomaticComplexity.riskLevel === 'MODERATE'
+                    ? 'bg-blue-900/50 text-blue-400 border border-blue-500/30'
+                    : report.astMetrics.cyclomaticComplexity.riskLevel === 'HIGH'
+                    ? 'bg-amber-900/50 text-amber-400 border border-amber-500/30'
+                    : 'bg-red-900/50 text-red-400 border border-red-500/30'
+                }`}>
+                  {report.astMetrics.cyclomaticComplexity.riskLevel}
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2 mt-1">
+                <span className="text-xl font-mono font-light text-white">
+                  {report.astMetrics.cyclomaticComplexity.average}
+                </span>
+                <span className="text-[10px] text-zinc-500 font-mono">
+                  (Máx: {report.astMetrics.cyclomaticComplexity.max})
+                </span>
+              </div>
+              <div className="text-[10px] text-zinc-500 mt-1 font-mono">
+                {report.astMetrics.cyclomaticComplexity.totalFunctionsCount} funções analisadas
+              </div>
+            </div>
+
+            {/* Memory Safety Index */}
+            <div className="p-3 rounded bg-zinc-950/70 border border-zinc-800/80">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 mb-1 flex items-center justify-between">
+                <span>Segurança de Memória</span>
+                <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold ${
+                  report.astMetrics.memorySafety.memorySafetyIndex >= 85
+                    ? 'bg-emerald-900/50 text-emerald-400 border border-emerald-500/30'
+                    : report.astMetrics.memorySafety.memorySafetyIndex >= 60
+                    ? 'bg-amber-900/50 text-amber-400 border border-amber-500/30'
+                    : 'bg-red-900/50 text-red-400 border border-red-500/30'
+                }`}>
+                  {report.astMetrics.memorySafety.memorySafetyPosture}
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2 mt-1">
+                <span className={`text-xl font-mono font-light ${
+                  report.astMetrics.memorySafety.memorySafetyIndex >= 85
+                    ? 'text-emerald-400'
+                    : report.astMetrics.memorySafety.memorySafetyIndex >= 60
+                    ? 'text-amber-400'
+                    : 'text-red-400'
+                }`}>
+                  {report.astMetrics.memorySafety.memorySafetyIndex}
+                </span>
+                <span className="text-[10px] text-zinc-500 font-mono">/ 100</span>
+              </div>
+              <div className="text-[10px] text-zinc-500 mt-1 font-mono">
+                {report.astMetrics.memorySafety.unsafeBlocksCount} unsafe, {report.astMetrics.memorySafety.rawPointerDerefs} ptrs
+              </div>
+            </div>
+
+            {/* Transmute & Unbounded Slicing */}
+            <div className="p-3 rounded bg-zinc-950/70 border border-zinc-800/80">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 mb-1">
+                Transmutes &amp; Slices
+              </div>
+              <div className="flex items-baseline gap-2 mt-1">
+                <span className="text-xl font-mono font-light text-white">
+                  {report.astMetrics.memorySafety.transmuteCount + report.astMetrics.memorySafety.unboundedSlicingOrAlloc}
+                </span>
+                <span className="text-[10px] text-zinc-500 font-mono">ocorrências</span>
+              </div>
+              <div className="text-[10px] text-zinc-500 mt-1 font-mono">
+                {report.astMetrics.memorySafety.transmuteCount} transmute, {report.astMetrics.memorySafety.unboundedSlicingOrAlloc} alocações
+              </div>
+            </div>
+
+            {/* High Complexity Hotspots */}
+            <div className="p-3 rounded bg-zinc-950/70 border border-zinc-800/80">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 mb-1">
+                Pontos de Alta Complexidade
+              </div>
+              <div className="flex items-baseline gap-2 mt-1">
+                <span className={`text-xl font-mono font-light ${
+                  report.astMetrics.cyclomaticComplexity.highComplexityPoints === 0
+                    ? 'text-emerald-400'
+                    : 'text-amber-400'
+                }`}>
+                  {report.astMetrics.cyclomaticComplexity.highComplexityPoints}
+                </span>
+                <span className="text-[10px] text-zinc-500 font-mono">locais (CC &gt; 15)</span>
+              </div>
+              <div className="text-[10px] text-zinc-500 mt-1 font-mono">
+                {report.astMetrics.cyclomaticComplexity.highComplexityPoints === 0 ? 'Fluxos bem divididos' : 'Refatoração recomendada'}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Executive Summary & Architecture Panel */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Executive Summary */}

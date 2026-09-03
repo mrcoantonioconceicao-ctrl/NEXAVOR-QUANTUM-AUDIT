@@ -1,4 +1,4 @@
-import { RustEdition, RustVulnerability, SourceFile } from './types.ts';
+import { AstMetrics, RustEdition, RustVulnerability, SourceFile } from './types.ts';
 import { analyzePolyglotStaticPatterns } from './polyglotStaticEngine.ts';
 
 export function analyzeRustStaticPatterns(files: SourceFile[]): {
@@ -8,6 +8,7 @@ export function analyzeRustStaticPatterns(files: SourceFile[]): {
   totalLines: number;
   detectedLanguages?: string[];
   primaryLanguage?: string;
+  astMetrics?: AstMetrics;
 } {
   const result = analyzePolyglotStaticPatterns(files);
   return {
@@ -17,5 +18,6 @@ export function analyzeRustStaticPatterns(files: SourceFile[]): {
     totalLines: result.totalLines,
     detectedLanguages: result.detectedLanguages,
     primaryLanguage: result.primaryLanguage,
+    astMetrics: result.astMetrics,
   };
 }

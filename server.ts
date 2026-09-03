@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
-import { handleAnalyzeRepo, handleFetchGitHub, handleGetSystemMetrics, handleOsvBatchProxy, handleCreateGitHubPullRequest, handleSuggestRustPatch, handleAstRefactor, handleCreateRefactorPullRequest, handleMcp } from './server/routes';
+import { handleAnalyzeRepo, handleAstScan, handleFetchGitHub, handleGetSystemMetrics, handleOsvBatchProxy, handleCreateGitHubPullRequest, handleSuggestRustPatch, handleAstRefactor, handleCreateRefactorPullRequest, handleMcp } from './server/routes';
 
 import {
   handleGetWebhookConfigs,
@@ -46,6 +46,7 @@ async function startServer() {
 
   // Real API Routes
   app.post('/api/audit/analyze', handleAnalyzeRepo);
+  app.post('/api/audit/ast-scan', handleAstScan);
   app.post('/api/audit/suggest-rust-patch', handleSuggestRustPatch);
   app.post('/api/audit/ast-refactor', handleAstRefactor);
   app.post('/api/audit/osv-batch', handleOsvBatchProxy);

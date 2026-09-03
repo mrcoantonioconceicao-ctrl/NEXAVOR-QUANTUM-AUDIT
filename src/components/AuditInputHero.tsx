@@ -210,6 +210,16 @@ contract StakingVault {
   },
 };
 
+const POPULAR_REAL_GITHUB_REPOS = [
+  { name: 'pagamentos-inteligentes', fullName: 'mrcoantonioconceicao-ctrl/pagamentos-inteligentes', lang: 'Rust/Solana', desc: 'Smart Contract de Pagamentos Inteligentes (Anchor)' },
+  { name: 'tokio', fullName: 'tokio-rs/tokio', lang: 'Rust', desc: 'Runtime assíncrono para Rust' },
+  { name: 'hyper', fullName: 'hyperium/hyper', lang: 'Rust', desc: 'Biblioteca HTTP de alta performance em Rust' },
+  { name: 'express', fullName: 'expressjs/express', lang: 'JavaScript', desc: 'Framework web para Node.js' },
+  { name: 'fastapi', fullName: 'tiangolo/fastapi', lang: 'Python', desc: 'Framework moderno de APIs em Python' },
+  { name: 'solana-programs', fullName: 'solana-labs/solana-program-library', lang: 'Rust', desc: 'Contratos e programas on-chain Solana' },
+  { name: 'gin', fullName: 'gin-gonic/gin', lang: 'Go', desc: 'Framework HTTP de alta performance em Go' },
+];
+
 export const AuditInputHero: React.FC<AuditInputHeroProps> = ({
   onStartAuditWithUrl,
   onStartAuditWithCustomCode,
@@ -303,16 +313,40 @@ export const AuditInputHero: React.FC<AuditInputHeroProps> = ({
     }
   };
 
-  const handleSelectBenchmark = (benchId: string, forceScope?: 'FULL_REPO' | 'PULL_REQUEST') => {
+  const handleSelectBenchmark = (benchId: string) => {
     onClearError?.();
     const found = BENCHMARK_CASES.find((b) => b.id === benchId);
     if (found) {
-      setGithubUrl(found.repo.url);
-      setInputMode('url');
-      const scopeToUse = forceScope || auditScope;
-      setAuditScope(scopeToUse);
-      onStartAuditWithUrl(found.repo.url, undefined, scopeToUse);
+      const mainFile =
+        found.files.find(
+          (f) =>
+            !f.path.endsWith('.toml') &&
+            !f.path.endsWith('.json') &&
+            !f.path.endsWith('.txt') &&
+            !f.path.endsWith('.mod')
+        ) || found.files[0];
+
+      const repoName = found.repo.name;
+      const fileName = mainFile?.path || 'src/lib.rs';
+      const code = mainFile?.content || '';
+
+      setCustomRepoName(repoName);
+      setCustomFileName(fileName);
+      setCustomCode(code);
+      setSelectedLang(found.language || 'Rust');
+      setInputMode('code');
+      onStartAuditWithCustomCode(repoName, fileName, code);
     }
+  };
+
+  const handleSelectRealRepo = (repoFullName: string, forceScope?: 'FULL_REPO' | 'PULL_REQUEST') => {
+    onClearError?.();
+    const fullUrl = `https://github.com/${repoFullName}`;
+    setGithubUrl(fullUrl);
+    setInputMode('url');
+    const scopeToUse = forceScope || auditScope;
+    setAuditScope(scopeToUse);
+    onStartAuditWithUrl(fullUrl, undefined, scopeToUse);
   };
 
   return (
@@ -660,13 +694,13 @@ export const AuditInputHero: React.FC<AuditInputHeroProps> = ({
           )}
         </form>
 
-        {/* 1-Click Benchmarks & Real Popular Repositories */}
+        {/* 1-Click Real GitHub Repositories */}
         <div className="border-t border-zinc-800/80 pt-5 space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <Database className="h-3.5 w-3.5 text-emerald-400" />
-              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-400">
-                Benchmarks Reais & Repositórios de Teste em 1 Clique:
+              <Github className="h-3.5 w-3.5 text-emerald-400" />
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-300">
+                Repositórios Públicos Reais no GitHub (Ingestão Git REST API):
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -699,27 +733,59 @@ export const AuditInputHero: React.FC<AuditInputHeroProps> = ({
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
-            {BENCHMARK_CASES.map((b) => (
+            {POPULAR_REAL_GITHUB_REPOS.map((r) => (
               <button
-                key={b.id}
+                key={r.fullName}
                 type="button"
-                onClick={() => handleSelectBenchmark(b.id)}
+                onClick={() => handleSelectRealRepo(r.fullName)}
                 className="p-2.5 rounded border border-zinc-800 bg-zinc-900/40 hover:bg-zinc-850 hover:border-zinc-700 text-left transition-all group flex flex-col justify-between"
               >
                 <div className="flex items-center justify-between">
                   <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-emerald-400 font-bold uppercase">
-                    {b.language || 'Polyglot'}
+                    {r.lang}
                   </span>
                   <ExternalLink className="h-3 w-3 text-zinc-600 group-hover:text-zinc-400" />
                 </div>
                 <div className="mt-2 text-xs font-mono font-bold text-zinc-200 truncate group-hover:text-emerald-300">
-                  {b.repo.name}
+                  {r.name}
                 </div>
                 <div className="text-[10px] text-zinc-500 truncate mt-0.5">
-                  {b.repo.description}
+                  {r.fullName}
                 </div>
               </button>
             ))}
+          </div>
+
+          {/* Forensic Study Cases loaded directly into Code Editor */}
+          <div className="pt-2">
+            <div className="flex items-center gap-2 mb-2">
+              <Code2 className="h-3.5 w-3.5 text-blue-400" />
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-400">
+                Amostras de Vulnerabilidades para Auditoria AST (Editor Manual):
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+              {BENCHMARK_CASES.map((b) => (
+                <button
+                  key={b.id}
+                  type="button"
+                  onClick={() => handleSelectBenchmark(b.id)}
+                  className="p-2 rounded border border-zinc-800/80 bg-zinc-900/20 hover:bg-zinc-850 hover:border-zinc-700 text-left transition-all group flex flex-col justify-between"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-zinc-400 group-hover:text-blue-300 font-semibold uppercase">
+                      {b.language || 'Polyglot'}
+                    </span>
+                  </div>
+                  <div className="mt-1.5 text-[11px] font-mono font-medium text-zinc-300 truncate group-hover:text-zinc-100">
+                    {b.name.split(' (')[0]}
+                  </div>
+                  <div className="text-[9px] text-zinc-500 truncate mt-0.5">
+                    {b.category}
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>

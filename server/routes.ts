@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import os from 'os';
 import { MCPServer } from '../src/mcp/server.ts';
+import { analyzePolyglotStaticPatterns } from '../src/domain/polyglotStaticEngine.ts';
 
 import {
   runGeminiDeepAudit,
@@ -13,6 +14,21 @@ import {
   generateDeterministicAstRefactor,
   GeminiAstRefactorRequest,
 } from './geminiAuditor';
+
+/**
+ * Validador seguro para GitHub Personal Access Token (PAT).
+ * Ignora valores booleanos espúrios ("true", "false") ou placeholders que possam estar no ambiente.
+ */
+export function isValidGitHubToken(token: unknown): token is string {
+  if (!token || typeof token !== 'string') return false;
+  const clean = token.trim();
+  if (!clean) return false;
+  const lower = clean.toLowerCase();
+  if (['true', 'false', 'undefined', 'null', 'my_github_token', 'token', 'none', 'placeholder'].includes(lower)) {
+    return false;
+  }
+  return clean.length >= 15;
+}
 
 let requestCount = 0;
 const serverStartTime = Date.now();
@@ -86,6 +102,35 @@ export async function handleAnalyzeRepo(req: Request, res: Response) {
   } catch (error: any) {
     return res.status(500).json({
       error: 'Erro interno ao processar a auditoria de segurança.',
+      details: error?.message,
+    });
+  }
+}
+
+/**
+ * Escaneamento Real de AST e Análise de Segurança de Memória e Complexidade Ciclomática
+ * Sem dados mockados: analisa sintática e probabilisticamente o código fornecido.
+ */
+export function handleAstScan(req: Request, res: Response) {
+  requestCount++;
+  try {
+    const { files } = req.body;
+
+    if (!files || !Array.isArray(files) || files.length === 0) {
+      return res.status(400).json({
+        error: 'Nenhum arquivo fornecido para análise de AST.',
+      });
+    }
+
+    const astResult = analyzePolyglotStaticPatterns(files as any);
+    return res.json({
+      success: true,
+      source: 'native-ast-engine',
+      result: astResult,
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      error: 'Erro ao executar análise de AST.',
       details: error?.message,
     });
   }
@@ -245,6 +290,17 @@ export async function resolveGitHubRepo(owner: string, repo: string, headers: Re
       const data = await directRes.json();
       return { owner: data.owner.login as string, repo: data.name as string, repoData: data, errorRes: null };
     }
+    // Fallback: se o token nos headers falhou com 401, tentar requisição pública anônima
+    if (directRes.status === 401 && headers.Authorization) {
+      const anonHeaders = { ...headers };
+      delete anonHeaders.Authorization;
+      const anonRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers: anonHeaders });
+      if (anonRes.ok) {
+        const data = await anonRes.json();
+        delete headers.Authorization; // Limpa para chamadas subsequentes
+        return { owner: data.owner.login as string, repo: data.name as string, repoData: data, errorRes: null };
+      }
+    }
   } catch (e) {
     console.warn('[Smart GitHub Resolver] Direct repo fetch error:', e);
   }
@@ -375,9 +431,13 @@ export async function handleFetchGitHub(req: Request, res: Response) {
       Accept: 'application/vnd.github.v3+json',
     };
 
-    const effectiveToken = (token && typeof token === 'string' && token.trim()) 
-      ? token.trim() 
-      : (process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '').trim();
+    const effectiveToken = [
+      token,
+      req.headers.authorization?.replace(/^Bearer\s+/i, '').replace(/^token\s+/i, ''),
+      process.env.GITHUB_TOKEN,
+      process.env.GH_TOKEN,
+      process.env.GITHUB_PAT,
+    ].find(isValidGitHubToken) || '';
 
     if (effectiveToken) {
       headers.Authorization = effectiveToken.startsWith('Bearer ') || effectiveToken.startsWith('token ')
@@ -561,9 +621,26 @@ export async function handleFetchGitHub(req: Request, res: Response) {
             });
           }
         } else if (repoMetaRes.status === 401) {
-          return res.status(401).json({
-            error: `Acesso não autorizado ao repositório '${owner}/${repo}'. Se for um repositório privado, forneça um Personal Access Token (PAT) com permissão 'repo'.`,
-          });
+          // Se falhou com 401 e havia headers.Authorization, tentar fallback anônimo público
+          if (headers.Authorization) {
+            console.warn(`[GitHub API] Token com 401 para ${actualOwner}/${actualRepo}. Tentando requisição pública anônima...`);
+            const anonHeaders = { ...headers };
+            delete anonHeaders.Authorization;
+            const anonRes = await fetch(`https://api.github.com/repos/${actualOwner}/${actualRepo}`, { headers: anonHeaders });
+            if (anonRes.ok) {
+              repoData = await anonRes.json();
+              defaultBranch = requestedBranch || repoData.default_branch || 'main';
+              delete headers.Authorization; // Limpa para chamadas subsequentes
+            } else {
+              return res.status(401).json({
+                error: `Acesso não autorizado ao repositório '${owner}/${repo}'. Se for um repositório privado, forneça um Personal Access Token (PAT) com permissão 'repo'.`,
+              });
+            }
+          } else {
+            return res.status(401).json({
+              error: `Acesso não autorizado ao repositório '${owner}/${repo}'. Se for um repositório privado, forneça um Personal Access Token (PAT) com permissão 'repo'.`,
+            });
+          }
         } else if (repoMetaRes.status === 403 || repoMetaRes.status === 429) {
           isRateLimited = true;
           console.warn(`[GitHub API] Rate limit reached for ${owner}/${repo}. Falling back to raw file discovery engine.`);
@@ -865,7 +942,14 @@ export async function handleCreateGitHubPullRequest(req: Request, res: Response)
     }
 
     const { owner: rawOwner, repo: rawRepo } = parsed;
-    const token = (githubToken || req.body.token || process.env.GITHUB_TOKEN || process.env.GITHUB_PAT || '').trim();
+    const token = [
+      githubToken,
+      req.body.token,
+      req.headers.authorization?.replace(/^Bearer\s+/i, '').replace(/^token\s+/i, ''),
+      process.env.GITHUB_TOKEN,
+      process.env.GITHUB_PAT,
+      process.env.GH_TOKEN
+    ].find(isValidGitHubToken) || '';
 
     // If no token is provided, return 400 with a clear message requesting the token
     if (!token) {
@@ -1219,7 +1303,14 @@ export async function handleCreateRefactorPullRequest(req: Request, res: Respons
     }
 
     const { owner: rawOwner, repo: rawRepo } = parsed;
-    const token = (githubToken || req.body.token || process.env.GITHUB_TOKEN || process.env.GITHUB_PAT || '').trim();
+    const token = [
+      githubToken,
+      req.body.token,
+      req.headers.authorization?.replace(/^Bearer\s+/i, '').replace(/^token\s+/i, ''),
+      process.env.GITHUB_TOKEN,
+      process.env.GITHUB_PAT,
+      process.env.GH_TOKEN
+    ].find(isValidGitHubToken) || '';
 
     if (!token) {
       return res.status(400).json({

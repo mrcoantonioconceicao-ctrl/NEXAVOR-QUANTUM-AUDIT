@@ -103,7 +103,7 @@ export const ArchitectureDocsModal: React.FC = () => {
           </p>
           <ul className="space-y-2 text-xs text-zinc-400 list-disc list-inside font-mono">
             <li>
-              <strong className="text-zinc-200">Porta de Ingestão Git:</strong> Adaptador multi-linguagem para GitHub REST API com fallback gracioso para benchmarks de conformidade.
+              <strong className="text-zinc-200">Porta de Ingestão Git:</strong> Adaptador multi-linguagem para GitHub REST API com resolução inteligente de branches, download direto de arquivos reais e zero dados mockados no pipeline de análise.
             </li>
             <li>
               <strong className="text-zinc-200">Porta de Raciocínio Semântico:</strong> Comunicação com Gemini do lado do servidor via `@google/genai` sem exposição de credenciais no cliente.

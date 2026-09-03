@@ -1,4 +1,4 @@
-import { RustEdition, RustVulnerability, SourceFile, SupportedLanguage } from './types.ts';
+import { AstMetrics, RustEdition, RustVulnerability, SourceFile, SupportedLanguage } from './types.ts';
 
 export interface PolyglotAnalysisResult {
   vulnerabilities: RustVulnerability[];
@@ -7,6 +7,7 @@ export interface PolyglotAnalysisResult {
   primaryLanguage: string;
   totalUnsafeBlocks: number;
   totalLines: number;
+  astMetrics: AstMetrics;
 }
 
 export function detectFileLanguage(filePath: string): SupportedLanguage {
@@ -847,6 +848,190 @@ export function analyzePolyglotStaticPatterns(files: SourceFile[]): PolyglotAnal
     }
   }
 
+  // 1. Calculate Real Cyclomatic Complexity per file and repository average
+  let totalComplexitySum = 0;
+  let maxRepoComplexity = 1;
+  let totalHighComplexityPoints = 0;
+  let totalCodeLines = 0;
+  let totalCommentLines = 0;
+  let totalBlankLines = 0;
+
+  const fileComplexityBreakdown: AstMetrics['cyclomaticComplexity']['fileBreakdown'] = [];
+
+  files.forEach((file) => {
+    const lang = file.language || detectFileLanguage(file.path);
+    const lines = file.content.split('\n');
+    let fileComplexity = 1;
+    let functionsCount = 0;
+    let maxFuncComplexity = 1;
+    let currentFuncComplexity = 1;
+    let inFunction = false;
+
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        totalBlankLines++;
+        return;
+      }
+      if (isCommentLine(trimmed, lang)) {
+        totalCommentLines++;
+        return;
+      }
+      totalCodeLines++;
+
+      // Detect function boundary
+      const isFnStart =
+        /^\s*(pub\s+)?(async\s+)?fn\s+[a-zA-Z0-9_]+/i.test(line) ||
+        /^\s*(def|async\s+def)\s+[a-zA-Z0-9_]+/i.test(line) ||
+        /^\s*(export\s+)?(async\s+)?function(\s+[a-zA-Z0-9_]+)?\s*\(/.test(line) ||
+        /^\s*func\s+(\([^)]+\)\s+)?[a-zA-Z0-9_]+\s*\(/.test(line) ||
+        /^\s*(public|private|protected|static|\s)+[\w<>\[\]]+\s+[a-zA-Z0-9_]+\s*\([^)]*\)\s*(\{)?/.test(line);
+
+      if (isFnStart) {
+        if (inFunction) {
+          if (currentFuncComplexity > maxFuncComplexity) maxFuncComplexity = currentFuncComplexity;
+          if (currentFuncComplexity > 10) totalHighComplexityPoints++;
+        }
+        functionsCount++;
+        inFunction = true;
+        currentFuncComplexity = 1;
+      }
+
+      // Branching tokens (if, else if, elif, for, while, catch, except, case, match)
+      const branchMatches = line.match(/\b(if|else\s+if|elif|for|while|catch|except|case|match)\b/g);
+      if (branchMatches) {
+        fileComplexity += branchMatches.length;
+        currentFuncComplexity += branchMatches.length;
+      }
+
+      // Logical operators (&&, ||)
+      const logicMatches = line.match(/(&&|\|\|)/g);
+      if (logicMatches) {
+        fileComplexity += logicMatches.length;
+        currentFuncComplexity += logicMatches.length;
+      }
+
+      // Error propagation in Rust / Ternary
+      if (lang === 'Rust' && line.includes('?')) {
+        const qCount = (line.match(/\?/g) || []).length;
+        fileComplexity += qCount;
+        currentFuncComplexity += qCount;
+      }
+    });
+
+    if (inFunction) {
+      if (currentFuncComplexity > maxFuncComplexity) maxFuncComplexity = currentFuncComplexity;
+      if (currentFuncComplexity > 10) totalHighComplexityPoints++;
+    }
+
+    if (maxFuncComplexity > maxRepoComplexity) {
+      maxRepoComplexity = maxFuncComplexity;
+    }
+
+    totalComplexitySum += fileComplexity;
+
+    fileComplexityBreakdown.push({
+      file: file.path,
+      complexity: fileComplexity,
+      functionsCount: Math.max(1, functionsCount),
+      maxFunctionComplexity: maxFuncComplexity,
+    });
+  });
+
+  const avgComplexity = files.length > 0 ? Number((totalComplexitySum / files.length).toFixed(1)) : 1.0;
+  let complexityRiskLevel: AstMetrics['cyclomaticComplexity']['riskLevel'] = 'LOW';
+  if (avgComplexity > 25 || maxRepoComplexity > 30) {
+    complexityRiskLevel = 'EXTREME';
+  } else if (avgComplexity > 15 || maxRepoComplexity > 20) {
+    complexityRiskLevel = 'HIGH';
+  } else if (avgComplexity > 8 || maxRepoComplexity > 12) {
+    complexityRiskLevel = 'MODERATE';
+  }
+
+  // 2. Calculate Real Memory Safety Metrics
+  let rawPointerDerefs = 0;
+  let unboundedSlicingOrAlloc = 0;
+  let transmuteCount = 0;
+  let memoryLeakRiskCount = 0;
+
+  files.forEach((file) => {
+    const lang = file.language || detectFileLanguage(file.path);
+    const lines = file.content.split('\n');
+
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+      if (isCommentLine(trimmed, lang)) return;
+
+      if (
+        (trimmed.includes('*const ') || trimmed.includes('*mut ') || trimmed.includes('reinterpret_cast') || trimmed.includes('unsafe.Pointer')) &&
+        (lang === 'Rust' || lang === 'C' || lang === 'C++' || lang === 'Go')
+      ) {
+        rawPointerDerefs++;
+      }
+      if (trimmed.includes('std::mem::transmute') || trimmed.includes('transmute_copy')) {
+        transmuteCount++;
+      }
+      if (
+        trimmed.includes('std::mem::uninitialized') ||
+        trimmed.includes('std::mem::zeroed') ||
+        trimmed.includes('malloc(') ||
+        trimmed.includes('alloca(') ||
+        trimmed.includes('strcpy(') ||
+        trimmed.includes('sprintf(')
+      ) {
+        unboundedSlicingOrAlloc++;
+      }
+      if (
+        trimmed.includes('Box::leak') ||
+        trimmed.includes('std::mem::forget') ||
+        (trimmed.includes('new ') && !trimmed.includes('std::make_unique') && (lang === 'C++' || lang === 'C'))
+      ) {
+        memoryLeakRiskCount++;
+      }
+    });
+  });
+
+  const memoryPenalties =
+    totalUnsafeBlocks * 5.0 +
+    rawPointerDerefs * 2.5 +
+    transmuteCount * 12.0 +
+    unboundedSlicingOrAlloc * 10.0 +
+    memoryLeakRiskCount * 4.0;
+
+  const memorySafetyIndex = Math.max(0, Math.min(100, Math.round(100 - memoryPenalties)));
+
+  let memorySafetyPosture: AstMetrics['memorySafety']['memorySafetyPosture'] = 'OPTIMAL_MEMORY_SAFETY';
+  if (memorySafetyIndex < 40 || transmuteCount > 0 || unboundedSlicingOrAlloc > 0) {
+    memorySafetyPosture = 'CRITICAL_UB_HAZARDS';
+  } else if (memorySafetyIndex < 70 || totalUnsafeBlocks > 3) {
+    memorySafetyPosture = 'ELEVATED_MEMORY_RISK';
+  } else if (memorySafetyIndex < 90 || totalUnsafeBlocks > 0) {
+    memorySafetyPosture = 'ACCEPTABLE_BOUNDED_UNSAFE';
+  }
+
+  const astMetrics: AstMetrics = {
+    totalLines,
+    codeLines: totalCodeLines,
+    commentLines: totalCommentLines,
+    blankLines: totalBlankLines,
+    cyclomaticComplexity: {
+      average: avgComplexity,
+      max: maxRepoComplexity,
+      highComplexityPoints: totalHighComplexityPoints,
+      riskLevel: complexityRiskLevel,
+      fileBreakdown: fileComplexityBreakdown,
+    },
+    memorySafety: {
+      unsafeBlocksCount: totalUnsafeBlocks,
+      rawPointerDerefs,
+      unboundedSlicingOrAlloc,
+      transmuteCount,
+      memoryLeakRiskCount,
+      memorySafetyIndex,
+      memorySafetyPosture,
+    },
+  };
+
   return {
     vulnerabilities,
     editionDetected,
@@ -854,5 +1039,6 @@ export function analyzePolyglotStaticPatterns(files: SourceFile[]): PolyglotAnal
     primaryLanguage: primaryLanguage || 'Polyglot',
     totalUnsafeBlocks,
     totalLines,
+    astMetrics,
   };
 }

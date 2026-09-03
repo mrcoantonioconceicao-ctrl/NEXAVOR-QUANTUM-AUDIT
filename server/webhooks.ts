@@ -1,5 +1,7 @@
 import type { Request, Response } from 'express';
 import crypto from 'crypto';
+import { analyzePolyglotStaticPatterns } from '../src/domain/polyglotStaticEngine.ts';
+import { calculateCvssWeightedSecurityScore } from '../src/services/auditService.ts';
 
 export interface WebhookConfigData {
   id: string;
@@ -280,11 +282,26 @@ export async function handleIncomingGitHubWebhook(req: Request, res: Response) {
     return res.json({ msg: 'pong', status: 'active', timestamp: new Date().toISOString() });
   }
 
-  // Calculate audit score & vulnerabilities simulated for real-time notification
-  const critical = Math.floor(Math.random() * 2);
-  const high = Math.floor(Math.random() * 3) + 1;
-  const medium = Math.floor(Math.random() * 4) + 2;
-  const score = Math.max(65, Math.min(98, 100 - (critical * 15 + high * 6 + medium * 2)));
+  // Calculate audit score & vulnerabilities derived strictly from real AST pattern analysis
+  const filesToAudit: Array<{ path: string; content: string; language?: string }> = Array.isArray(req.body?.files) ? req.body.files : [];
+
+  const astAnalysis = analyzePolyglotStaticPatterns(filesToAudit as any);
+  const critical = astAnalysis.vulnerabilities.filter(
+    (v) => v.severity === 'CRITICAL' || (v.cvssScore !== undefined && v.cvssScore >= 9.0)
+  ).length;
+  const high = astAnalysis.vulnerabilities.filter(
+    (v) => v.severity === 'HIGH' || (v.cvssScore !== undefined && v.cvssScore >= 7.0 && v.cvssScore < 9.0)
+  ).length;
+  const medium = astAnalysis.vulnerabilities.filter(
+    (v) => v.severity === 'MEDIUM' || (v.cvssScore !== undefined && v.cvssScore >= 4.0 && v.cvssScore < 7.0)
+  ).length;
+
+  const score = calculateCvssWeightedSecurityScore({
+    vulnerabilities: astAnalysis.vulnerabilities,
+    totalUnsafeBlocks: astAnalysis.totalUnsafeBlocks,
+    waveHazardsCount: 0,
+    quantumReadinessScore: 85,
+  });
 
   const deliveryLog: WebhookDeliveryData = {
     id: `del_${crypto.randomBytes(3).toString('hex')}`,

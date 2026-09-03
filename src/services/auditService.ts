@@ -3,6 +3,7 @@ import {
   SecurityAuditReport,
   SourceFile,
   RustVulnerability,
+  AstMetrics,
 } from '../domain/types.ts';
 import { analyzePolyglotStaticPatterns } from '../domain/polyglotStaticEngine.ts';
 import {
@@ -19,19 +20,27 @@ export interface CvssScoreCalculationInput {
   totalUnsafeBlocks?: number;
   waveHazardsCount?: number;
   quantumReadinessScore?: number;
+  astMetrics?: AstMetrics;
 }
 
 /**
-  * Calcula a severidade e a nota geral de segurança com pesos de CVSS v3.1/v4.0.
-  * Se o repositório não possuir vulnerabilidades críticas (CVSS 9.0-10.0),
-  * pontua proporcionalmente na faixa de 65 a 75/100 para evitar alarmismo injustificado.
-  */
+ * Calcula a nota geral de segurança estritamente baseada em métricas extraídas do código:
+ * - Nós de vulnerabilidades da AST e pesos CVSS v3.1/v4.0
+ * - Riscos reais de segurança de memória (blocos unsafe, ponteiros crus, transmute, buffers não delimitados)
+ * - Complexidade ciclomática real (densidade de ramificação por função/arquivo)
+ * - Ressonância espectral de ondas de risco (0-Day)
+ * - Lacunas de criptografia pós-quântica (NIST PQC)
+ *
+ * Zero simulação ou valores estáticos: repositórios limpos atingem até 100/100,
+ * enquanto bases com falhas críticas (RCE, corrupção de memória, etc.) têm scores reduzidos de forma fidedigna.
+ */
 export function calculateCvssWeightedSecurityScore(input: CvssScoreCalculationInput): number {
   const {
     vulnerabilities,
     totalUnsafeBlocks = 0,
     waveHazardsCount = 0,
     quantumReadinessScore = 100,
+    astMetrics,
   } = input;
 
   const criticalCount = vulnerabilities.filter(
@@ -50,39 +59,68 @@ export function calculateCvssWeightedSecurityScore(input: CvssScoreCalculationIn
     (v) => v.severity === 'LOW' || (v.cvssScore !== undefined && v.cvssScore < 4.0)
   ).length;
 
-  // CVSS Weighted Deductions
-  const critDeduction = Math.min(45, criticalCount * 20);
-  const highDeduction = Math.min(20, highCount * 4.0);
-  const medDeduction = Math.min(10, mediumCount * 1.5);
-  const lowDeduction = Math.min(4, lowCount * 0.5);
-  const unsafeDeduction = Math.min(8, totalUnsafeBlocks * 1.0);
-  const waveDeduction = Math.min(5, waveHazardsCount * 1.0);
-  const quantumDeduction =
-    quantumReadinessScore < 50 ? Math.min(5, (50 - quantumReadinessScore) * 0.1) : 0;
+  // 1. Deduções por Severidade de Vulnerabilidades CVSS
+  // Falhas Críticas (CVSS 9.0-10.0: RCE, desserialização não confiável, memory corruption, unauthenticated bypass)
+  const critDeduction = criticalCount * 22.0;
 
-  let calculatedScore =
-    100 -
-    (critDeduction +
-      highDeduction +
-      medDeduction +
-      lowDeduction +
-      unsafeDeduction +
-      waveDeduction +
-      quantumDeduction);
+  // Falhas de Alta Severidade (CVSS 7.0-8.9: SQLi, command injection, timing attacks, prototype pollution, data races)
+  const highDeduction = highCount * 9.5;
 
-  // Exact rule: Repositories WITHOUT critical vulnerabilities (CVSS < 9.0)
-  // are scored proportionally in the 65 - 75 range (if non-critical issues exist) or 100 if completely clean!
-  if (criticalCount === 0) {
-    if (highCount === 0 && mediumCount === 0 && lowCount === 0 && totalUnsafeBlocks === 0) {
-      return quantumReadinessScore >= 80 ? 100 : Math.round(calculatedScore);
-    }
-    // Has non-critical advisories/updates: map strictly to 65 - 75
-    const mappedScore = Math.round(65 + (Math.max(0, Math.min(30, calculatedScore - 50)) / 30) * 10);
-    return Math.min(75, Math.max(65, mappedScore));
+  // Falhas Médias (CVSS 4.0-6.9: dependências com advisories conhecidos, falta de sanitização moderada)
+  const medDeduction = mediumCount * 3.8;
+
+  // Falhas Baixas / Avisos (CVSS < 4.0)
+  const lowDeduction = lowCount * 1.2;
+
+  // 2. Riscos Reais de Segurança de Memória (AST Memory Safety Analysis)
+  let memoryRiskDeduction = 0;
+  if (astMetrics?.memorySafety) {
+    const mem = astMetrics.memorySafety;
+    memoryRiskDeduction = Math.min(
+      18,
+      mem.unsafeBlocksCount * 1.8 +
+      mem.rawPointerDerefs * 1.2 +
+      mem.transmuteCount * 5.0 +
+      mem.unboundedSlicingOrAlloc * 4.0 +
+      mem.memoryLeakRiskCount * 1.5
+    );
+  } else {
+    memoryRiskDeduction = Math.min(15, totalUnsafeBlocks * 1.8);
   }
 
-  // Critical vulnerabilities present (CVSS 9.0-10.0): range 15 - 55
-  return Math.max(15, Math.min(55, Math.round(calculatedScore)));
+  // 3. Penalidade por Complexidade Ciclomática Real
+  let cyclomaticDeduction = 0;
+  if (astMetrics?.cyclomaticComplexity) {
+    const { average, max, highComplexityPoints } = astMetrics.cyclomaticComplexity;
+    if (average > 6.0 || max > 15 || highComplexityPoints > 0) {
+      const avgPenalty = Math.max(0, (average - 6.0) * 1.2);
+      const maxPenalty = max > 15 ? (max - 15) * 0.35 : 0;
+      const pointPenalty = highComplexityPoints * 0.8;
+      cyclomaticDeduction = Math.min(12, avgPenalty + maxPenalty + pointPenalty);
+    }
+  }
+
+  // 4. Vetores de interferência de ondas de risco e entropia espectral
+  const waveDeduction = Math.min(10, waveHazardsCount * 2.0);
+
+  // 5. Lacuna de conformidade com criptografia pós-quântica (NIST PQC)
+  const quantumDeduction =
+    quantumReadinessScore < 80 ? Math.min(8, (80 - quantumReadinessScore) * 0.12) : 0;
+
+  const totalDeductions =
+    critDeduction +
+    highDeduction +
+    medDeduction +
+    lowDeduction +
+    memoryRiskDeduction +
+    cyclomaticDeduction +
+    waveDeduction +
+    quantumDeduction;
+
+  const realScore = 100 - totalDeductions;
+
+  // Score real delimitado entre 0 e 100
+  return Math.max(0, Math.min(100, Math.round(realScore)));
 }
 
 /**
@@ -128,9 +166,13 @@ export async function runFullSecurityAudit(
   );
 
   // Step 3: AST & Polyglot Static Pattern Analysis
-  onProgress?.(2, 40, 'Executando motor estático universal de análise de AST e padrões de segurança...');
+  onProgress?.(2, 40, 'Executando motor estático universal de análise de AST, segurança de memória e complexidade ciclomática...');
   const staticResult = analyzePolyglotStaticPatterns(files);
-  onProgress?.(2, 100, `Identificados ${staticResult.vulnerabilities.length} pontos de vulnerabilidade de código em [${staticResult.detectedLanguages.join(', ')}].`);
+  onProgress?.(
+    2,
+    100,
+    `Identificados ${staticResult.vulnerabilities.length} pontos de vulnerabilidade em [${staticResult.detectedLanguages.join(', ')}]. Complexidade Ciclomática Média: ${staticResult.astMetrics.cyclomaticComplexity.average} (Risco: ${staticResult.astMetrics.cyclomaticComplexity.riskLevel}), Postura de Memória: ${staticResult.astMetrics.memorySafety.memorySafetyPosture}.`
+  );
 
   // Step 4: Zero-Day Wave Theory Analysis
   onProgress?.(3, 50, 'Calculando entropia espectral e matriz de ressonância de onda para previsão de 0-Day...');
@@ -242,16 +284,17 @@ export async function runFullSecurityAudit(
     (v) => v.severity === 'MEDIUM' || (v.cvssScore && v.cvssScore >= 4.0 && v.cvssScore < 7.0)
   ).length;
 
-  // Real CVSS v3.1/v4.0 Weighted Calculation
+  // Real CVSS v3.1/v4.0 Weighted Calculation with Real Code AST Metrics (Memory Safety & Cyclomatic Complexity)
   const overallSecurityScore = calculateCvssWeightedSecurityScore({
     vulnerabilities: aiEnrichedVulnerabilities,
     totalUnsafeBlocks: staticResult.totalUnsafeBlocks,
     waveHazardsCount: waveAnalysis.hazards.length,
     quantumReadinessScore: quantumMetrics.quantumReadinessScore,
+    astMetrics: staticResult.astMetrics,
   });
 
   if (!aiExecutiveSummary) {
-    aiExecutiveSummary = `Parecer pericial de auditoria automatizada para ${repo.fullName} (${staticResult.detectedLanguages.join(', ')}). Foram inspecionadas ${staticResult.totalLines} linhas de código e ${files.length} arquivos-fonte, mapeando ${dependencyResult.totalDependenciesCount} dependências de pacote. O repositório registra ${totalVulns} apontamentos de segurança (${criticalCount} críticos, ${highCount} de alta severidade e ${mediumCount} moderados) com ${dependencyResult.vulnerableCount} advisories de supply chain (OSV.dev / RustSec / GHSA). A análise de ressonância espectral de entropia indica postura de risco mensurável, enquanto o motor criptográfico avalia conformidade com os novos padrões NIST PQC (FIPS 203 ML-KEM e FIPS 204 ML-DSA).`;
+    aiExecutiveSummary = `Parecer pericial de auditoria automatizada para ${repo.fullName} (${staticResult.detectedLanguages.join(', ')}). Foram inspecionadas ${staticResult.totalLines} linhas de código e ${files.length} arquivos-fonte, mapeando ${dependencyResult.totalDependenciesCount} dependências de pacote. O repositório registra ${totalVulns} apontamentos de segurança (${criticalCount} críticos, ${highCount} de alta severidade e ${mediumCount} moderados) com ${dependencyResult.vulnerableCount} advisories de supply chain (OSV.dev / RustSec / GHSA). A análise estática de AST calculou Complexidade Ciclomática Média de ${staticResult.astMetrics.cyclomaticComplexity.average} (Risco: ${staticResult.astMetrics.cyclomaticComplexity.riskLevel}) e Índice de Segurança de Memória de ${staticResult.astMetrics.memorySafety.memorySafetyIndex}/100 (${staticResult.astMetrics.memorySafety.memorySafetyPosture}). A análise de ressonância espectral de entropia indica postura de risco mensurável, enquanto o motor criptográfico avalia conformidade com os novos padrões NIST PQC (FIPS 203 ML-KEM e FIPS 204 ML-DSA).`;
   }
 
   const securityTests = generateSecurityTestSuite(aiEnrichedVulnerabilities);
@@ -301,6 +344,7 @@ export async function runFullSecurityAudit(
     primaryLanguage: staticResult.primaryLanguage,
     totalUnsafeBlocks: staticResult.totalUnsafeBlocks,
     totalLinesAudited: staticResult.totalLines,
+    astMetrics: staticResult.astMetrics,
     vulnerabilities: aiEnrichedVulnerabilities,
     waveHazards: waveAnalysis.hazards,
     quantumMetrics,

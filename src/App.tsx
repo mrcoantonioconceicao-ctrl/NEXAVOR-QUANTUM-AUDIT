@@ -24,7 +24,6 @@ import { getStoredGitHubToken } from './services/tokenStorage.ts';
 import { SecurityAuditReport, BpmnStep, FuzzCrashAlert } from './domain/types.ts';
 
 import { INITIAL_BPMN_STEPS, advanceBpmnStep } from './domain/bpmnWorkflow.ts';
-import { BENCHMARK_CASES } from './domain/benchmarks.ts';
 import { fetchGitHubRepository } from './services/githubService.ts';
 import { runFullSecurityAudit } from './services/auditService.ts';
 import { exportExecutivePdf } from './services/pdfExporter.ts';

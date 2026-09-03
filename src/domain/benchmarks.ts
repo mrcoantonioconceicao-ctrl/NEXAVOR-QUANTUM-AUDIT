@@ -1,5 +1,12 @@
 import { RepositoryMetadata, SourceFile } from './types.ts';
 
+/**
+ * Casos de estudo e amostras de código vulnerável para testes forenses manuais no Editor AST.
+ *
+ * IMPORTANTE: Estes dados são exclusivamente templates de código para o usuário inspecionar
+ * e carregar manualmente no editor de código. NUNCA devem ser injetados silenciosamente
+ * como fallback em requisições de URL da API do GitHub ou em webhooks.
+ */
 export interface BenchmarkCase {
   id: string;
   name: string;

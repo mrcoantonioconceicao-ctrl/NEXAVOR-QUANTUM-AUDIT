@@ -1,5 +1,4 @@
 import { RepositoryMetadata, SourceFile } from '../domain/types.ts';
-import { BENCHMARK_CASES } from '../domain/benchmarks.ts';
 import { detectFileLanguage } from '../domain/polyglotStaticEngine.ts';
 
 export interface FetchRepoOptions {
@@ -30,61 +29,6 @@ export async function fetchGitHubRepository(
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}));
     const message = errData.error || `Erro de conexão com o GitHub (${res.status} ${res.statusText})`;
-    
-    // Check if the user passed a benchmark URL or keyword
-    const cleanUrl = options.url.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const matchedBenchmark = BENCHMARK_CASES.find((b) => {
-      const bNameClean = b.repo.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const bFullClean = (b.repo.fullName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-      const bIdClean = b.id.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const bUrlClean = (b.repo.url || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-
-      return (
-        cleanUrl.includes(bNameClean) ||
-        bNameClean.includes(cleanUrl) ||
-        cleanUrl.includes(bFullClean) ||
-        bFullClean.includes(cleanUrl) ||
-        cleanUrl.includes(bIdClean) ||
-        cleanUrl.includes(bUrlClean) ||
-        // Special case aliases
-        (cleanUrl.includes('slippay') && b.id.includes('slippay')) ||
-        (cleanUrl.includes('nexa') && b.id.includes('nexa')) ||
-        ((cleanUrl.includes('solana') || cleanUrl.includes('anchor') || cleanUrl.includes('atolada')) && b.id.includes('solana-anchor'))
-      );
-    });
-
-    if (matchedBenchmark) {
-      const isPr = options.scope === 'PULL_REQUEST' || options.url.includes('/pull');
-      const repoWithScope: RepositoryMetadata = {
-        ...matchedBenchmark.repo,
-        fullName: options.url.includes('/') && !options.url.startsWith('http') ? options.url : matchedBenchmark.repo.fullName,
-        scope: isPr ? 'PULL_REQUEST' : 'FULL_REPO',
-        ...(isPr
-          ? {
-              pullRequest: {
-                number: options.pullNumber || 42,
-                title: `PR #${options.pullNumber || 42}: Migração de Criptografia & Correção de Race Condition`,
-                author: matchedBenchmark.repo.owner || 'sec-engineer',
-                state: 'open',
-                headBranch: 'feat/crypto-hardening',
-                baseBranch: matchedBenchmark.repo.defaultBranch || 'main',
-                htmlUrl: `${matchedBenchmark.repo.url}/pull/${options.pullNumber || 42}`,
-                additions: 128,
-                deletions: 34,
-                changedFilesCount: matchedBenchmark.files.slice(0, 3).length,
-                createdAt: new Date().toISOString(),
-                body: 'Auditoria de Pull Request focada em novas rotas, primitivas criptográficas e controle de concorrência.',
-              },
-            }
-          : {}),
-      };
-
-      return {
-        repository: repoWithScope,
-        files: isPr ? matchedBenchmark.files.slice(0, 3) : matchedBenchmark.files,
-      };
-    }
-
     throw new Error(message);
   }
 

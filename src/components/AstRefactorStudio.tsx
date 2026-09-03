@@ -179,7 +179,7 @@ export const AstRefactorStudio: React.FC<AstRefactorStudioProps> = ({
   // GitHub PR States
   const [githubToken, setGithubToken] = useState<string>(() => getStoredGitHubToken());
   const [customRepoUrl, setCustomRepoUrl] = useState<string>(() => {
-    return report?.targetRepo?.url || (report?.targetRepo?.fullName ? `https://github.com/${report.targetRepo.fullName}` : 'https://github.com/mrcoantonioconceicao-ctrl/NEXAVOR-QUANTUM-AUDIT');
+    return report?.targetRepo?.url || (report?.targetRepo?.fullName ? `https://github.com/${report.targetRepo.fullName}` : 'https://github.com/mrcoantonioconceicao-ctrl/pagamentos-inteligentes');
   });
   const [isOpeningPr, setIsOpeningPr] = useState<boolean>(false);
   const [prError, setPrError] = useState<string | null>(null);
@@ -983,7 +983,7 @@ export const AstRefactorStudio: React.FC<AstRefactorStudioProps> = ({
                     type="text"
                     value={customRepoUrl}
                     onChange={(e) => setCustomRepoUrl(e.target.value)}
-                    placeholder="https://github.com/mrcoantonioconceicao-ctrl/NEXAVOR-QUANTUM-AUDIT"
+                    placeholder="https://github.com/mrcoantonioconceicao-ctrl/pagamentos-inteligentes"
                     className="w-full bg-zinc-950 border border-zinc-700 focus:border-purple-400 rounded px-3 py-2 font-mono text-xs text-white outline-none shadow-inner"
                   />
                 </div>

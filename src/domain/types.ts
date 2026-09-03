@@ -149,6 +149,34 @@ export interface SecurityTestCase {
   targetLanguage?: string;
 }
 
+export interface AstMetrics {
+  totalLines: number;
+  codeLines: number;
+  commentLines: number;
+  blankLines: number;
+  cyclomaticComplexity: {
+    average: number;
+    max: number;
+    highComplexityPoints: number;
+    riskLevel: 'LOW' | 'MODERATE' | 'HIGH' | 'EXTREME';
+    fileBreakdown: Array<{
+      file: string;
+      complexity: number;
+      functionsCount: number;
+      maxFunctionComplexity: number;
+    }>;
+  };
+  memorySafety: {
+    unsafeBlocksCount: number;
+    rawPointerDerefs: number;
+    unboundedSlicingOrAlloc: number;
+    transmuteCount: number;
+    memoryLeakRiskCount: number;
+    memorySafetyIndex: number; // 0 to 100
+    memorySafetyPosture: 'OPTIMAL_MEMORY_SAFETY' | 'ACCEPTABLE_BOUNDED_UNSAFE' | 'ELEVATED_MEMORY_RISK' | 'CRITICAL_UB_HAZARDS';
+  };
+}
+
 export interface SecurityAuditReport {
   id: string;
   timestamp: string;
@@ -164,6 +192,7 @@ export interface SecurityAuditReport {
   waveHazards: ZeroDayWaveHazard[];
   quantumMetrics: QuantumCryptoMetrics;
   executiveSummary: string;
+  astMetrics?: AstMetrics;
   architectureVerdict: {
     dddCompliance: string;
     soaResilience: string;
