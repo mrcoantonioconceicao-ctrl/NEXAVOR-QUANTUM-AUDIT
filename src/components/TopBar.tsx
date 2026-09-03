@@ -20,6 +20,7 @@ const TAB_TITLES: Record<TabType, { title: string; subtitle: string }> = {
   dashboard: { title: 'Dashboard Executivo', subtitle: 'Métricas e Postura de Segurança' },
   compliance: { title: 'Governança & Conformidade GRC', subtitle: 'SOC 2, ISO 27001, NIST SP 800-218, FAIR & SBOM' },
   pqc: { title: 'Auditoria Criptográfica & Zero Trust', subtitle: 'AES-256-GCM, ChaCha20-Poly1305, Ed25519 & Constant-Time' },
+  graphRag: { title: 'Grafo de Conhecimento & RAG Híbrido', subtitle: 'Vector RAG (NIST/FIPS/PCI) + GraphRAG (Neo4j/FalkorDB)' },
   cicd: { title: 'Pipeline Studio Multi-Cloud', subtitle: 'GitHub Actions, GitLab CI, Azure DevOps & Webhooks' },
   auditTrail: { title: 'Trilha Imutável SIEM & RBAC', subtitle: 'Livro-Razão Criptográfico e Log Stream CEF' },
   compare: { title: 'Comparador de Regressões (Diff)', subtitle: 'Detecção de Novas Vulnerabilidades vs Scan Anterior' },

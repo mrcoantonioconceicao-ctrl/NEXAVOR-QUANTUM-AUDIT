@@ -31,19 +31,23 @@ export function generateCycloneDxJson(report: SecurityAuditReport): string {
   }));
 
   // Add source files as file components
-  const fileComponents = (report.filesAudited || []).map((f) => ({
-    type: 'file',
-    'bom-ref': `file:${f.path}`,
-    name: f.path,
-    version: report.editionDetected || '1.0.0',
-    description: `Audited Source Unit (${f.language || 'Rust'})`,
-    hashes: [
-      {
-        alg: 'SHA-256',
-        content: `a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0`,
-      },
-    ],
-  }));
+  const fileComponents = (report.filesAudited || []).map((f) => {
+    const filePath = typeof f === 'string' ? f : f?.path || 'unknown';
+    const lang = typeof f === 'string' ? 'Rust' : f?.language || 'Rust';
+    return {
+      type: 'file',
+      'bom-ref': `file:${filePath}`,
+      name: filePath,
+      version: report.editionDetected || '1.0.0',
+      description: `Audited Source Unit (${lang})`,
+      hashes: [
+        {
+          alg: 'SHA-256',
+          content: `a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0`,
+        },
+      ],
+    };
+  });
 
   const vulnerabilities = (report.vulnerabilities || []).map((vuln) => ({
     'bom-ref': vuln.id,
@@ -137,18 +141,21 @@ export function generateSpdxJson(report: SecurityAuditReport): string {
         summary: `Audited Enterprise Target: ${report.primaryLanguage || 'Polyglot'}`,
       },
     ],
-    files: (report.filesAudited || []).map((f, idx) => ({
-      fileName: `./${f.path}`,
-      SPDXID: `SPDXRef-File-${idx}`,
-      checksums: [
-        {
-          algorithm: 'SHA256',
-          checksumValue: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-        },
-      ],
-      licenseConcluded: 'MIT',
-      copyrightText: 'NOASSERTION',
-    })),
+    files: (report.filesAudited || []).map((f, idx) => {
+      const filePath = typeof f === 'string' ? f : f?.path || 'unknown';
+      return {
+        fileName: `./${filePath}`,
+        SPDXID: `SPDXRef-File-${idx}`,
+        checksums: [
+          {
+            algorithm: 'SHA256',
+            checksumValue: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+          },
+        ],
+        licenseConcluded: 'MIT',
+        copyrightText: 'NOASSERTION',
+      };
+    }),
   };
 
   return JSON.stringify(spdx, null, 2);

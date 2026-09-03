@@ -15,6 +15,7 @@ import { AstRefactorStudio } from './components/AstRefactorStudio.tsx';
 import { GitHubTokenModal } from './components/GitHubTokenModal.tsx';
 import { ComplianceGovernanceHub } from './components/ComplianceGovernanceHub.tsx';
 import { QuantumPqcHub } from './components/QuantumPqcHub.tsx';
+import { GraphRagVisualizer } from './components/GraphRagVisualizer.tsx';
 import { EnterpriseCiCdStudio } from './components/EnterpriseCiCdStudio.tsx';
 import { EnterpriseAuditTrail } from './components/EnterpriseAuditTrail.tsx';
 import { FuzzCrashBanner } from './components/FuzzCrashBanner.tsx';
@@ -331,6 +332,10 @@ export default function App() {
                 <QuantumPqcHub report={report} />
               )}
 
+              {activeTab === 'graphRag' && (
+                <GraphRagVisualizer report={report} showNotification={showNotification} />
+              )}
+
               {activeTab === 'cicd' && (
                 <EnterpriseCiCdStudio report={report} />
               )}
@@ -439,6 +444,8 @@ export default function App() {
             <ComplianceGovernanceHub report={null} />
           ) : activeTab === 'pqc' ? (
             <QuantumPqcHub report={null} />
+          ) : activeTab === 'graphRag' ? (
+            <GraphRagVisualizer report={null} showNotification={showNotification} />
           ) : activeTab === 'fuzzing' ? (
             <FuzzingDashboard
               fuzzAlerts={fuzzAlerts}

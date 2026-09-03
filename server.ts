@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
-import { handleAnalyzeRepo, handleAstScan, handleFetchGitHub, handleGetSystemMetrics, handleOsvBatchProxy, handleCreateGitHubPullRequest, handleSuggestRustPatch, handleAstRefactor, handleCreateRefactorPullRequest, handleMcp } from './server/routes';
+import { handleAnalyzeRepo, handleAstScan, handleFetchGitHub, handleGetSystemMetrics, handleOsvBatchProxy, handleCreateGitHubPullRequest, handleSuggestRustPatch, handleAstRefactor, handleCreateRefactorPullRequest, handleMcp, handleHybridRagQuery, handleQueryImpactGraph, handleExportCypher, handleSyncGraph } from './server/routes';
 
 import {
   handleGetWebhookConfigs,
@@ -43,6 +43,12 @@ async function startServer() {
 
   // MCP Protocol Route for IDEs and AI Assistants
   app.post('/api/mcp', handleMcp);
+
+  // Hybrid RAG (Vector RAG + GraphRAG) & Knowledge Graph Endpoints
+  app.post('/api/rag/hybrid-query', handleHybridRagQuery);
+  app.post('/api/rag/impact-graph', handleQueryImpactGraph);
+  app.get('/api/rag/cypher-export', handleExportCypher);
+  app.post('/api/rag/graph-sync', handleSyncGraph);
 
   // Real API Routes
   app.post('/api/audit/analyze', handleAnalyzeRepo);

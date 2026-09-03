@@ -24,6 +24,8 @@ import {
   Workflow,
   Key,
   Flame,
+  Network,
+  Sparkles,
 } from 'lucide-react';
 import { SecurityAuditReport } from '../domain/types.ts';
 
@@ -32,6 +34,7 @@ export type TabType =
   | 'fuzzing'
   | 'compliance'
   | 'pqc'
+  | 'graphRag'
   | 'cicd'
   | 'auditTrail'
   | 'compare'
@@ -104,6 +107,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Key,
       badge: 'Zero Trust',
       badgeColor: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+    },
+    {
+      id: 'graphRag' as TabType,
+      label: 'RAG Híbrido & Grafo',
+      description: 'Vector + Knowledge Graph',
+      icon: Network,
+      badge: 'v2.1 GraphRAG',
+      badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
     },
     {
       id: 'cicd' as TabType,

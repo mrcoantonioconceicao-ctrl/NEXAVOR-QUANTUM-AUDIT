@@ -6,6 +6,8 @@
 
 import { AstRefactorEngine } from '../domain/astRefactorEngine.ts';
 import { GRCService } from '../domain/grc.ts';
+import { GraphSyncService } from '../domain/knowledgeGraph/GraphSyncService.ts';
+import { HybridRAGFusionService } from '../domain/knowledgeGraph/HybridRAGFusionService.ts';
 
 export interface MCPToolDefinition {
   name: string;
@@ -85,10 +87,36 @@ export const MCP_TOOLS: MCPToolDefinition[] = [
       required: ['assetValueUsd', 'exposureFactorPercent', 'aro', 'securityCostUsd', 'mitigationPercent'],
     },
   },
+  {
+    name: 'query_impact_graph',
+    description: 'Navega no Grafo de Conhecimento (GraphRAG) e retorna a árvore de impacto multi-hop de vulnerabilidades e não-conformidades de um arquivo/função.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        targetId: { type: 'string', description: 'ID ou nome do arquivo/função (ex: "programs/solana_sandbox_counter/src/lib.rs" ou "increment()").' },
+        maxDepth: { type: 'number', description: 'Profundidade máxima de navegação no grafo (1 a 5).' },
+      },
+      required: ['targetId'],
+    },
+  },
+  {
+    name: 'hybrid_rag_query',
+    description: 'Executa consulta RAG Híbrida combinando busca vetorial semântica (NIST/FIPS/PCI-DSS) e navegação em Grafo de Conhecimento (GraphRAG) com Reranking.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Pergunta ou requisição de auditoria semântica/relacional.' },
+        targetFileOrFunction: { type: 'string', description: 'Arquivo ou função para focar a análise de impacto em grafo.' },
+        vectorWeight: { type: 'number', description: 'Peso da busca vetorial (0.0 a 1.0).' },
+        graphWeight: { type: 'number', description: 'Peso da navegação em grafo (0.0 a 1.0).' },
+      },
+      required: ['query'],
+    },
+  },
 ];
 
 export class MCPServer {
-  public static handleRequest(req: MCPRequest): MCPResponse {
+  public static async handleRequest(req: MCPRequest): Promise<MCPResponse> {
     const { id, method, params } = req;
 
     if (method === 'tools/list') {
@@ -180,6 +208,45 @@ export class MCPServer {
                 {
                   type: 'text',
                   text: JSON.stringify(metrics, null, 2),
+                },
+              ],
+            },
+          };
+        }
+
+        if (toolName === 'query_impact_graph') {
+          const { targetId = 'lib.rs', maxDepth = 3 } = args;
+          const impactTree = GraphSyncService.queryImpactTree(targetId, Number(maxDepth));
+          return {
+            jsonrpc: '2.0',
+            id,
+            result: {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(impactTree, null, 2),
+                },
+              ],
+            },
+          };
+        }
+
+        if (toolName === 'hybrid_rag_query') {
+          const { query = '', targetFileOrFunction, vectorWeight, graphWeight } = args;
+          const ragResult = await HybridRAGFusionService.executeHybridQuery({
+            query,
+            targetFileOrFunction,
+            vectorWeight: vectorWeight !== undefined ? Number(vectorWeight) : 0.5,
+            graphWeight: graphWeight !== undefined ? Number(graphWeight) : 0.5,
+          });
+          return {
+            jsonrpc: '2.0',
+            id,
+            result: {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(ragResult, null, 2),
                 },
               ],
             },

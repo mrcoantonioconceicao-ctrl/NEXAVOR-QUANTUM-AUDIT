@@ -488,22 +488,27 @@ export const ComplianceGovernanceHub: React.FC<ComplianceGovernanceHubProps> = (
             </div>
 
             <div className="divide-y divide-zinc-800 border border-zinc-800 rounded-lg overflow-hidden">
-              {(report?.filesAudited || []).slice(0, 10).map((file, idx) => (
-                <div key={idx} className="p-3.5 bg-zinc-950/60 hover:bg-zinc-900/60 flex items-center justify-between text-xs font-mono">
-                  <div className="flex items-center gap-3">
-                    <span className="text-emerald-400 font-bold">#{idx + 1}</span>
-                    <div>
-                      <div className="text-zinc-200 font-semibold">{file.path}</div>
-                      <div className="text-[10px] text-zinc-500 font-sans">
-                        Tamanho: {file.size} bytes | SHA-256: e3b0c44298fc1c149afbf... | Licença: MIT
+              {(report?.filesAudited || []).slice(0, 10).map((file, idx) => {
+                const filePath = typeof file === 'string' ? file : file?.path || 'unknown';
+                const fileSize = typeof file === 'string' ? 1024 : file?.size || 0;
+                const fileLang = typeof file === 'string' ? (report?.primaryLanguage || 'Source') : file?.language || report?.primaryLanguage || 'Source';
+                return (
+                  <div key={idx} className="p-3.5 bg-zinc-950/60 hover:bg-zinc-900/60 flex items-center justify-between text-xs font-mono">
+                    <div className="flex items-center gap-3">
+                      <span className="text-emerald-400 font-bold">#{idx + 1}</span>
+                      <div>
+                        <div className="text-zinc-200 font-semibold">{filePath}</div>
+                        <div className="text-[10px] text-zinc-500 font-sans">
+                          Tamanho: {fileSize} bytes | SHA-256: e3b0c44298fc1c149afbf... | Licença: MIT
+                        </div>
                       </div>
                     </div>
+                    <span className="rounded bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-300 border border-zinc-700">
+                      {fileLang}
+                    </span>
                   </div>
-                  <span className="rounded bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-300 border border-zinc-700">
-                    {file.language || report?.primaryLanguage || 'Source'}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

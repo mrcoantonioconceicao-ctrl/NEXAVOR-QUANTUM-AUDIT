@@ -2,6 +2,8 @@ import type { Request, Response } from 'express';
 import os from 'os';
 import { MCPServer } from '../src/mcp/server.ts';
 import { analyzePolyglotStaticPatterns } from '../src/domain/polyglotStaticEngine.ts';
+import { GraphSyncService } from '../src/domain/knowledgeGraph/GraphSyncService.ts';
+import { HybridRAGFusionService } from '../src/domain/knowledgeGraph/HybridRAGFusionService.ts';
 
 import {
   runGeminiDeepAudit,
@@ -1208,7 +1210,7 @@ export async function handleMcp(req: Request, res: Response) {
   requestCount++;
   try {
     const body = req.body || {};
-    const response = MCPServer.handleRequest(body);
+    const response = await MCPServer.handleRequest(body);
     return res.json(response);
   } catch (err: any) {
     return res.status(500).json({
@@ -1628,6 +1630,79 @@ ${technicalRationale || 'Refatoração concluída mantendo total compatibilidade
       error: 'Erro interno ao criar Pull Request no GitHub.',
       details: error?.message,
     });
+  }
+}
+
+/**
+ * Handler para Execução de Consulta RAG Híbrida (Vector RAG + Knowledge Graph / GraphRAG)
+ */
+export async function handleHybridRagQuery(req: Request, res: Response) {
+  try {
+    const { query = '', targetFileOrFunction, vectorWeight, graphWeight, topK } = req.body || {};
+    if (!query || typeof query !== 'string') {
+      return res.status(400).json({ error: 'É necessário fornecer a propriedade "query" em formato de texto.' });
+    }
+
+    const result = await HybridRAGFusionService.executeHybridQuery({
+      query,
+      targetFileOrFunction,
+      vectorWeight: vectorWeight !== undefined ? Number(vectorWeight) : 0.5,
+      graphWeight: graphWeight !== undefined ? Number(graphWeight) : 0.5,
+      topK: topK !== undefined ? Number(topK) : 5,
+    });
+
+    return res.json(result);
+  } catch (error: any) {
+    console.error('[RustShield Q-Audit Backend] Erro na consulta RAG Híbrida:', error);
+    return res.status(500).json({ error: 'Erro ao executar RAG Híbrido.', details: error?.message });
+  }
+}
+
+/**
+ * Handler para Análise de Impacto em Grafo Multi-Hop
+ */
+export async function handleQueryImpactGraph(req: Request, res: Response) {
+  try {
+    const { targetId = 'lib.rs', maxDepth = 3 } = req.body || {};
+    const impactTree = GraphSyncService.queryImpactTree(targetId, Number(maxDepth));
+    return res.json(impactTree);
+  } catch (error: any) {
+    console.error('[RustShield Q-Audit Backend] Erro na análise de impacto em Grafo:', error);
+    return res.status(500).json({ error: 'Erro ao analisar impacto no grafo.', details: error?.message });
+  }
+}
+
+/**
+ * Handler para Exportação de Scripts Cypher (Neo4j / Memgraph / FalkorDB)
+ */
+export async function handleExportCypher(_req: Request, res: Response) {
+  try {
+    const cypherScript = GraphSyncService.exportCypherScript();
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    return res.send(cypherScript);
+  } catch (error: any) {
+    console.error('[RustShield Q-Audit Backend] Erro na exportação de Cypher:', error);
+    return res.status(500).json({ error: 'Erro ao exportar script Cypher.', details: error?.message });
+  }
+}
+
+/**
+ * Handler para Sincronização e Povoamento do Grafo de Conhecimento
+ */
+export async function handleSyncGraph(req: Request, res: Response) {
+  try {
+    const report = req.body?.report || null;
+    const graph = GraphSyncService.syncAuditReportToGraph(report);
+    return res.json({
+      success: true,
+      message: 'Grafo de Conhecimento sincronizado com sucesso.',
+      nodesCount: graph.nodes.length,
+      relationshipsCount: graph.relationships.length,
+      updatedAt: graph.updatedAt,
+    });
+  } catch (error: any) {
+    console.error('[RustShield Q-Audit Backend] Erro ao sincronizar Grafo:', error);
+    return res.status(500).json({ error: 'Erro ao sincronizar Grafo.', details: error?.message });
   }
 }
 
