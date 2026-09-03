@@ -25,6 +25,7 @@ import {
   AlertOctagon,
   Loader2,
   Lock,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { SecurityAuditReport, VulnerabilitySeverity, SourceFile } from '../domain/types.ts';
 import { TabType } from './Sidebar.tsx';
@@ -32,6 +33,7 @@ import { getAuditHistory, compareAuditReports, generateSyntheticBaselineSession 
 import { SecurityBadgeModal } from './SecurityBadgeModal.tsx';
 import { DependencyVulnerabilitiesPanel } from './DependencyVulnerabilitiesPanel.tsx';
 import { createGitHubPullRequest, CreatePrResult } from '../services/githubService.ts';
+import { exportAuditToCsv } from '../services/excelExporter.ts';
 
 interface AuditDashboardProps {
   report: SecurityAuditReport;
@@ -190,6 +192,14 @@ export const AuditDashboard: React.FC<AuditDashboardProps> = ({
         </div>
 
         <div className="flex items-center gap-3 shrink-0">
+          <button
+            onClick={() => exportAuditToCsv(report)}
+            className="px-3 py-1.5 rounded border border-blue-500/40 bg-blue-950/40 hover:bg-blue-900/60 text-blue-300 font-mono text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs"
+            title="Exportar todas as vulnerabilidades e relatórios para planilha Excel (.csv)"
+          >
+            <FileSpreadsheet className="h-4 w-4 text-blue-400" />
+            <span>Excel (.csv)</span>
+          </button>
           <button
             onClick={() => setIsBadgeModalOpen(true)}
             className="px-3 py-1.5 rounded border border-emerald-500/40 bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 font-mono text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs"

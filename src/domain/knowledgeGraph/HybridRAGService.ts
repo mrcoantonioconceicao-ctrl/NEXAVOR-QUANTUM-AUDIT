@@ -28,6 +28,14 @@ export interface LatencyMetricRecord {
   vectorCount: number;
   graphNodesCount: number;
   efficiencyRating: 'EXCELLENT' | 'GOOD' | 'MODERATE' | 'SLOW';
+  cacheHit?: boolean;
+}
+
+export interface CacheStats {
+  cachedEntries: number;
+  totalHits: number;
+  totalMisses: number;
+  hitRatePercentage: number;
 }
 
 export type NotificationCallback = (message: string) => void;
@@ -35,6 +43,9 @@ export type NotificationCallback = (message: string) => void;
 export class HybridRAGService {
   private latencyHistory: LatencyMetricRecord[] = [];
   private globalNotificationHandler: NotificationCallback | null = null;
+  private queryCache: Map<string, { result: HybridRAGQueryResult; cachedAt: string }> = new Map();
+  private cacheHits: number = 0;
+  private cacheMisses: number = 0;
 
   /**
    * Registra um handler global de notificação (ex: showNotification do React)
@@ -44,13 +55,65 @@ export class HybridRAGService {
   }
 
   /**
-   * Executa a busca paralela em dois canais (Vector RAG + GraphRAG),
+   * Gera uma chave única determinística para o cache a partir da requisição
+   */
+  private generateCacheKey(request: HybridRAGQueryRequest): string {
+    return `${request.query.trim().toLowerCase()}_${request.targetFileOrFunction || ''}_${request.topK || 5}_${request.vectorWeight || 0.5}_${request.graphWeight || 0.5}`;
+  }
+
+  /**
+   * Retorna estatísticas de uso do cache local
+   */
+  public getCacheStats(): CacheStats {
+    const total = this.cacheHits + this.cacheMisses;
+    return {
+      cachedEntries: this.queryCache.size,
+      totalHits: this.cacheHits,
+      totalMisses: this.cacheMisses,
+      hitRatePercentage: total > 0 ? Math.round((this.cacheHits / total) * 100) : 0,
+    };
+  }
+
+  /**
+   * Limpa o cache local de consultas
+   */
+  public clearCache(): void {
+    this.queryCache.clear();
+    this.cacheHits = 0;
+    this.cacheMisses = 0;
+    console.log('⚡ [HybridRAG Cache] Cache de consultas zerado com sucesso.');
+  }
+
+  /**
+   * Executa a busca paralela em dois canais (Vector RAG + GraphRAG) com suporte a Cache Local,
    * monitora a latência de cada etapa, exibe os tempos no console e notifica via showNotification.
    */
   public async executeHybridQuery(
     request: HybridRAGQueryRequest,
-    customNotificationHandler?: NotificationCallback
+    customNotificationHandler?: NotificationCallback,
+    useCache: boolean = true
   ): Promise<HybridRAGQueryResult> {
+    const cacheKey = this.generateCacheKey(request);
+
+    // Verificação no Cache Local
+    if (useCache && this.queryCache.has(cacheKey)) {
+      this.cacheHits++;
+      const cachedItem = this.queryCache.get(cacheKey)!;
+      const cachedResult = { ...cachedItem.result };
+
+      // Notificar hit no cache
+      const notifyText = `⚡ [RAG Cache HIT] Resposta instantânea da memória local (${cachedItem.cachedAt})`;
+      if (customNotificationHandler) {
+        customNotificationHandler(notifyText);
+      } else if (this.globalNotificationHandler) {
+        this.globalNotificationHandler(notifyText);
+      }
+
+      this.logAndTrackLatency(cachedResult, customNotificationHandler, true);
+      return cachedResult;
+    }
+
+    this.cacheMisses++;
     const startTime = performance.now();
 
     // Execução da busca fusionada paralela
@@ -64,8 +127,20 @@ export class HybridRAGService {
       result.metrics.totalMs = measuredTotalMs || result.metrics.totalMs;
     }
 
+    // Salvar no Cache Local (limite de 50 entradas mais recentes)
+    if (useCache) {
+      if (this.queryCache.size >= 50) {
+        const firstKey = this.queryCache.keys().next().value;
+        if (firstKey) this.queryCache.delete(firstKey);
+      }
+      this.queryCache.set(cacheKey, {
+        result,
+        cachedAt: new Date().toLocaleTimeString('pt-BR'),
+      });
+    }
+
     // Registrar e Notificar a latência medida
-    this.logAndTrackLatency(result, customNotificationHandler);
+    this.logAndTrackLatency(result, customNotificationHandler, false);
 
     return result;
   }
@@ -76,14 +151,17 @@ export class HybridRAGService {
    */
   public logAndTrackLatency(
     result: HybridRAGQueryResult,
-    customNotificationHandler?: NotificationCallback
+    customNotificationHandler?: NotificationCallback,
+    isCacheHit: boolean = false
   ): LatencyMetricRecord {
     const { metrics, query } = result;
     const { vectorRetrievalMs, graphRetrievalMs, fusionMs, totalMs, vectorCount, graphNodesCount } = metrics;
 
     // Calcular Rating de Eficiência
     let efficiencyRating: 'EXCELLENT' | 'GOOD' | 'MODERATE' | 'SLOW' = 'EXCELLENT';
-    if (totalMs > 300) {
+    if (isCacheHit) {
+      efficiencyRating = 'EXCELLENT';
+    } else if (totalMs > 300) {
       efficiencyRating = 'SLOW';
     } else if (totalMs > 150) {
       efficiencyRating = 'MODERATE';
@@ -95,13 +173,14 @@ export class HybridRAGService {
       id: `rag_lat_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       timestamp: new Date().toISOString(),
       querySnippet: query.length > 50 ? query.substring(0, 50) + '...' : query,
-      vectorRetrievalMs,
-      graphRetrievalMs,
-      fusionMs,
-      totalMs,
+      vectorRetrievalMs: isCacheHit ? 0 : vectorRetrievalMs,
+      graphRetrievalMs: isCacheHit ? 0 : graphRetrievalMs,
+      fusionMs: isCacheHit ? 0 : fusionMs,
+      totalMs: isCacheHit ? 1 : totalMs,
       vectorCount,
       graphNodesCount,
       efficiencyRating,
+      cacheHit: isCacheHit,
     };
 
     // Armazenar no histórico em memória (últimos 50 registros)

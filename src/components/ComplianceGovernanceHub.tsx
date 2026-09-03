@@ -15,9 +15,21 @@ import {
   FileSpreadsheet,
   Cpu,
   BarChart3,
+  Bell,
+  Send,
+  Plus,
+  Trash2,
+  RefreshCw,
+  Zap,
 } from 'lucide-react';
 import { SecurityAuditReport, RustVulnerability } from '../domain/types.ts';
 import { downloadSbomFile } from '../services/sbomExporter.ts';
+import { exportComplianceToCsv, exportAuditToCsv } from '../services/excelExporter.ts';
+import {
+  WebhookNotificationService,
+  WebhookConfig,
+  WebhookDispatchLog,
+} from '../services/webhookNotificationService.ts';
 
 interface ComplianceGovernanceHubProps {
   report: SecurityAuditReport | null;
@@ -28,8 +40,54 @@ export const ComplianceGovernanceHub: React.FC<ComplianceGovernanceHubProps> = (
   report,
   onOpenVulnReview,
 }) => {
-  const [activeTab, setActiveTab] = useState<'matrix' | 'sbom' | 'fair_risk' | 'sla'>('matrix');
+  const [activeTab, setActiveTab] = useState<'matrix' | 'sbom' | 'fair_risk' | 'sla' | 'webhooks'>('matrix');
   const [selectedFramework, setSelectedFramework] = useState<'soc2' | 'iso27001' | 'nist' | 'owasp' | 'pci'>('soc2');
+
+  // Webhooks State
+  const [webhooks, setWebhooks] = useState<WebhookConfig[]>(() => WebhookNotificationService.getConfigs());
+  const [dispatchLogs, setDispatchLogs] = useState<WebhookDispatchLog[]>(() => WebhookNotificationService.getDispatchLogs());
+  const [newWebhookName, setNewWebhookName] = useState<string>('');
+  const [newWebhookUrl, setNewWebhookUrl] = useState<string>('');
+  const [newWebhookPlatform, setNewWebhookPlatform] = useState<WebhookConfig['platform']>('SLACK');
+  const [testingWebhookId, setTestingWebhookId] = useState<string | null>(null);
+  const [webhookMessage, setWebhookMessage] = useState<string | null>(null);
+
+  const handleAddWebhook = () => {
+    if (!newWebhookUrl.trim()) return;
+    const newConfig: WebhookConfig = {
+      id: `wh_${Date.now()}`,
+      name: newWebhookName.trim() || `Webhook ${newWebhookPlatform}`,
+      url: newWebhookUrl.trim(),
+      platform: newWebhookPlatform,
+      enabled: true,
+      triggerOnCritical: true,
+      triggerOnHigh: true,
+      triggerOnComplianceFailure: true,
+      createdAt: new Date().toISOString(),
+    };
+    const updated = [newConfig, ...webhooks];
+    setWebhooks(updated);
+    WebhookNotificationService.saveConfigs(updated);
+    setNewWebhookName('');
+    setNewWebhookUrl('');
+    setWebhookMessage('✨ Canal de Webhook configurado com sucesso!');
+    setTimeout(() => setWebhookMessage(null), 3000);
+  };
+
+  const handleDeleteWebhook = (id: string) => {
+    const updated = webhooks.filter((w) => w.id !== id);
+    setWebhooks(updated);
+    WebhookNotificationService.saveConfigs(updated);
+  };
+
+  const handleTestWebhook = async (config: WebhookConfig) => {
+    setTestingWebhookId(config.id);
+    const res = await WebhookNotificationService.sendTestNotification(config);
+    setTestingWebhookId(null);
+    setDispatchLogs(WebhookNotificationService.getDispatchLogs());
+    setWebhookMessage(res.message);
+    setTimeout(() => setWebhookMessage(null), 4000);
+  };
 
   const vulnList = report?.vulnerabilities || [];
   const criticalCount = vulnList.filter((v) => v.severity === 'CRITICAL').length;
@@ -203,21 +261,30 @@ export const ComplianceGovernanceHub: React.FC<ComplianceGovernanceHubProps> = (
             {report && (
               <>
                 <button
-                  onClick={() => downloadSbomFile(report, 'cyclonedx')}
+                  onClick={() => exportComplianceToCsv(report)}
                   className="flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-950/40 px-3 py-2 text-xs font-mono font-bold text-emerald-300 hover:bg-emerald-900/60 transition-all shadow-xs"
+                  title="Exportar matriz de compliance e controles em planilha CSV/Excel"
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>Exportar Excel (Compliance)</span>
+                </button>
+
+                <button
+                  onClick={() => exportAuditToCsv(report)}
+                  className="flex items-center gap-1.5 rounded-lg border border-blue-500/40 bg-blue-950/40 px-3 py-2 text-xs font-mono font-bold text-blue-300 hover:bg-blue-900/60 transition-all shadow-xs"
+                  title="Exportar lista detalhada de vulnerabilidades em planilha CSV/Excel"
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-blue-400" />
+                  <span>Exportar Excel (Falhas)</span>
+                </button>
+
+                <button
+                  onClick={() => downloadSbomFile(report, 'cyclonedx')}
+                  className="flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-xs font-mono font-bold text-zinc-200 hover:bg-zinc-700 transition-all"
                   title="Baixar SBOM no formato padrão OWASP CycloneDX v1.5 JSON"
                 >
                   <Download className="h-3.5 w-3.5" />
                   <span>CycloneDX v1.5</span>
-                </button>
-
-                <button
-                  onClick={() => downloadSbomFile(report, 'spdx')}
-                  className="flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-xs font-mono font-bold text-zinc-200 hover:bg-zinc-700 transition-all"
-                  title="Baixar SBOM no formato ISO/IEC 5962 SPDX v2.3 JSON"
-                >
-                  <FileSpreadsheet className="h-3.5 w-3.5 text-blue-400" />
-                  <span>SPDX v2.3</span>
                 </button>
               </>
             )}
@@ -260,6 +327,18 @@ export const ComplianceGovernanceHub: React.FC<ComplianceGovernanceHubProps> = (
           >
             <Layers className="h-3.5 w-3.5 text-indigo-400" />
             <span>Software Bill of Materials (SBOM)</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('webhooks')}
+            className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-mono font-semibold transition-all ${
+              activeTab === 'webhooks'
+                ? 'bg-zinc-800 text-white border border-zinc-700 shadow-xs'
+                : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200'
+            }`}
+          >
+            <Bell className="h-3.5 w-3.5 text-amber-400" />
+            <span>Alertas & Webhooks ({webhooks.length})</span>
           </button>
 
           <button
@@ -509,6 +588,160 @@ export const ComplianceGovernanceHub: React.FC<ComplianceGovernanceHubProps> = (
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: WEBHOOKS & REAL-TIME ALERTS */}
+      {activeTab === 'webhooks' && (
+        <div className="space-y-6">
+          <div className="rounded-xl border border-amber-500/30 bg-zinc-900/80 p-6 space-y-6 shadow-xl">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-zinc-800">
+              <div className="space-y-1">
+                <h3 className="text-base font-mono font-bold text-white flex items-center gap-2">
+                  <Bell className="w-5 h-5 text-amber-400" />
+                  <span>Canais de Alertas em Tempo Real (Slack, Microsoft Teams, Discord)</span>
+                </h3>
+                <p className="text-xs text-zinc-400">
+                  Notificações automáticas instantâneas para falhas críticas, violações de compliance e resultados de auditorias DevSecOps.
+                </p>
+              </div>
+
+              {webhookMessage && (
+                <div className="px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-mono font-semibold animate-pulse">
+                  {webhookMessage}
+                </div>
+              )}
+            </div>
+
+            {/* Formulário de Novo Webhook */}
+            <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-950/80 space-y-4">
+              <h4 className="text-xs font-mono font-bold text-zinc-200 uppercase flex items-center gap-2">
+                <Plus className="w-4 h-4 text-emerald-400" />
+                <span>Adicionar Novo Webhook de Notificação</span>
+              </h4>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-mono text-zinc-400 mb-1">Nome do Canal / Integração:</label>
+                  <input
+                    type="text"
+                    value={newWebhookName}
+                    onChange={(e) => setNewWebhookName(e.target.value)}
+                    placeholder="Ex: #devsecops-alerts"
+                    className="w-full bg-zinc-900 border border-zinc-800 focus:border-amber-500 rounded-lg p-2.5 text-xs text-zinc-200 outline-none font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-mono text-zinc-400 mb-1">Plataforma:</label>
+                  <select
+                    value={newWebhookPlatform}
+                    onChange={(e) => setNewWebhookPlatform(e.target.value as any)}
+                    className="w-full bg-zinc-900 border border-zinc-800 focus:border-amber-500 rounded-lg p-2.5 text-xs text-zinc-200 outline-none font-mono"
+                  >
+                    <option value="SLACK">Slack Webhook</option>
+                    <option value="TEAMS">Microsoft Teams</option>
+                    <option value="DISCORD">Discord</option>
+                    <option value="GENERIC_JSON">Endpoint HTTP (JSON NDJSON)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-mono text-zinc-400 mb-1">URL do Webhook:</label>
+                  <input
+                    type="text"
+                    value={newWebhookUrl}
+                    onChange={(e) => setNewWebhookUrl(e.target.value)}
+                    placeholder="https://hooks.slack.com/services/..."
+                    className="w-full bg-zinc-900 border border-zinc-800 focus:border-amber-500 rounded-lg p-2.5 text-xs text-zinc-200 outline-none font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  onClick={handleAddWebhook}
+                  disabled={!newWebhookUrl.trim()}
+                  className="px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white text-xs font-mono font-bold rounded-lg transition-all shadow-md disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Cadastrar Webhook</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Lista de Webhooks Ativos */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-mono font-bold text-zinc-300 uppercase">Webhooks Configurados ({webhooks.length})</h4>
+              <div className="space-y-2">
+                {webhooks.length === 0 ? (
+                  <div className="p-8 text-center text-xs font-mono text-zinc-500 border border-dashed border-zinc-800 rounded-lg">
+                    Nenhum canal de webhook cadastrado.
+                  </div>
+                ) : (
+                  webhooks.map((wh) => (
+                    <div
+                      key={wh.id}
+                      className="p-4 bg-zinc-950 border border-zinc-800 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3 font-mono text-xs"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white">{wh.name}</span>
+                          <span className="px-2 py-0.5 rounded text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            {wh.platform}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-zinc-500 truncate max-w-md">{wh.url}</div>
+                      </div>
+
+                      <div className="flex items-center space-x-2 shrink-0">
+                        <button
+                          onClick={() => handleTestWebhook(wh)}
+                          disabled={testingWebhookId === wh.id}
+                          className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-amber-300 border border-amber-500/30 text-xs font-semibold rounded-lg transition-all flex items-center gap-1"
+                        >
+                          {testingWebhookId === wh.id ? (
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                          ) : (
+                            <Send className="w-3.5 h-3.5" />
+                          )}
+                          <span>Disparar Teste</span>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteWebhook(wh.id)}
+                          className="p-1.5 bg-zinc-900 hover:bg-rose-500/20 text-zinc-400 hover:text-rose-300 border border-zinc-800 hover:border-rose-500/30 rounded-lg transition-all"
+                          title="Remover Webhook"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Histórico de Disparos */}
+            <div className="space-y-3 pt-4 border-t border-zinc-800">
+              <h4 className="text-xs font-mono font-bold text-zinc-300 uppercase">Histórico de Disparos Recentes ({dispatchLogs.length})</h4>
+              <div className="divide-y divide-zinc-800 border border-zinc-800 rounded-lg overflow-hidden max-h-48 overflow-y-auto custom-scrollbar">
+                {dispatchLogs.length === 0 ? (
+                  <div className="p-4 text-center text-xs font-mono text-zinc-500">Nenhum histórico de disparo registrado.</div>
+                ) : (
+                  dispatchLogs.map((log) => (
+                    <div key={log.id} className="p-3 bg-zinc-950/60 flex items-center justify-between text-xs font-mono">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${log.status === 'SUCCESS' ? 'bg-emerald-400' : 'bg-rose-500'}`} />
+                        <span className="text-zinc-200 font-semibold">{log.webhookName}</span>
+                        <span className="text-zinc-500 text-[10px]">{log.message}</span>
+                      </div>
+                      <span className="text-[10px] text-zinc-500">{new Date(log.timestamp).toLocaleTimeString('pt-BR')}</span>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         </div>
