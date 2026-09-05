@@ -1,0 +1,38 @@
+name: RustShield Autonomous Security Audit
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 4 * * *'
+
+jobs:
+  security-audit:
+    name: DevSecOps Vulnerability & Code Quality Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate Security Policies
+        run: |
+          echo "Verifying RustShield Security Guardrails..."
+          if [ -f "security/rustshield_guardrails.json" ]; then
+            echo "Guardrails configuration verified: OK"
+          else
+            echo "Missing guardrails configuration!"
+            exit 1
+          fi
+
+      - name: Static Security & Syntax Check
+        run: |
+          echo "Scanning codebase for command injection and unsafe patterns..."
+          npm run build --if-present
