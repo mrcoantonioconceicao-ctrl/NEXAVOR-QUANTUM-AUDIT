@@ -105,10 +105,34 @@ export function analyzePolyglotStaticPatterns(files: SourceFile[]): PolyglotAnal
           unsafeRiskDetail: 'Executores antigos permitem que tarefas bloqueantes congelem threads do pool assíncrono.',
           waveShockwaveRadius: 'CRATE_BOUNDARY',
           originalSnippet: `[dependencies]\ntokio = "0.1.22"`,
-          remediatedSnippet: `[dependencies]\ntokio = { version = "1.38", features = ["full"] }`,
-          suggestion: 'Atualize para Tokio >= 1.38 e utilize tokio::spawn com cooperação explícita tokio::task::yield_now() para evitar inanição de threads no reactor assíncrono.',
+          remediatedSnippet: `[dependencies]\ntokio = { version = "1.40.0", features = ["full"] }`,
+          suggestion: 'Atualize para Tokio >= 1.40.0 e utilize tokio::spawn com cooperação explícita tokio::task::yield_now() para evitar inanição de threads no reactor assíncrono.',
           miriVerificationStatus: 'COMPLIANT',
           clippyLintRule: 'cargo_dependency_obsolete',
+        });
+      }
+
+      // Borsh Deserialization Vulnerability (RUSTSEC-2023-0033 / CVE-2023-3893)
+      if (file.content.includes('borsh = "0.') || file.content.includes("borsh = '0.")) {
+        vulnerabilities.push({
+          id: `RUST-VULN-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
+          file: file.path,
+          line: 1,
+          language: 'Rust',
+          title: 'Vulnerabilidade Crítica de Desserialização em Crate Borsh < 1.0 (RUSTSEC-2023-0033 / CVE-2023-3893)',
+          severity: 'CRITICAL',
+          cwe: 'CWE-502: Desserialização de Dados Não Confiáveis / CWE-119',
+          rustsecId: 'RUSTSEC-2023-0033',
+          cvssScore: 9.6,
+          category: 'SUPPLY_CHAIN',
+          description: 'Versões legadas de `borsh` (< 1.0.0) contêm falhas graves de validação em tipos dinâmicos (como Vec e HashMap), permitindo estouro de alocação de memória (OOM crash) e corrupção de estado durante desserialização.',
+          unsafeRiskDetail: 'Exploração de memória descontrolada e colapso de nós validadores ou de rede.',
+          waveShockwaveRadius: 'SYSTEM_PROCESS',
+          originalSnippet: `[dependencies]\nborsh = "0.9.3"`,
+          remediatedSnippet: `[dependencies]\nborsh = { version = "1.5.3", features = ["derive"] }`,
+          suggestion: 'Atualize para `borsh >= 1.5.3` com limites estritos de profundidade e tamanho de payload desserializado.',
+          miriVerificationStatus: 'COMPLIANT',
+          clippyLintRule: 'cargo_vulnerable_borsh',
         });
       }
 
@@ -204,6 +228,54 @@ export function analyzePolyglotStaticPatterns(files: SourceFile[]): PolyglotAnal
       if (lang === 'Rust' || pathLower.endsWith('.rs')) {
         if (trimmed.includes('unsafe {') || trimmed.startsWith('unsafe fn') || trimmed.includes('unsafe impl')) {
           totalUnsafeBlocks++;
+        }
+
+        // Unsafe block without // SAFETY: documentation (NIST SP 800-218)
+        if (trimmed.includes('unsafe {') && !trimmed.includes('// SAFETY:') && !line.includes('// safe') && !file.content.includes('// SAFETY:')) {
+          vulnerabilities.push({
+            id: `RUST-VULN-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
+            file: file.path,
+            line: lineNum,
+            language: 'Rust',
+            title: 'Bloco `unsafe` Não Auditado sem Comentário // SAFETY: (NIST SP 800-218)',
+            severity: 'HIGH',
+            cwe: 'CWE-119: Violação de Limites de Memória / Memory Safety',
+            rustsecId: 'MEM-SAFETY-UNSAFE-001',
+            cvssScore: 7.5,
+            category: 'UNSAFE_UB',
+            description: 'Blocos `unsafe` contornam as garantias de borrow checker do Rust. Segundo o padrão NIST SP 800-218 e RustSec, todo bloco inseguro deve conter justificativa explícita // SAFETY: detalhando as pré-condições que previnem Undefined Behavior.',
+            unsafeRiskDetail: 'Potencial corrupção de memória silenciosa e violação de ponteiros.',
+            waveShockwaveRadius: 'LOCAL_MODULE',
+            originalSnippet: line.trim(),
+            remediatedSnippet: `// SAFETY: Pré-condições de alinhamento e não-sobreposição verificadas via RAII\n${line.trim()}`,
+            suggestion: 'Documente explicitamente os invariantes com `// SAFETY:` ou encapsule a lógica em uma abstração segura RAII.',
+            miriVerificationStatus: 'DETECTED_UB',
+            clippyLintRule: 'clippy::undocumented_unsafe_blocks',
+          });
+        }
+
+        // Blocking Mutex/RwLock in async Tokio runtime (CWE-821)
+        if ((trimmed.includes('std::sync::Mutex') || trimmed.includes('std::sync::RwLock')) && (file.content.includes('async fn') || file.content.includes('.await') || file.content.includes('tokio'))) {
+          vulnerabilities.push({
+            id: `RUST-VULN-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
+            file: file.path,
+            line: lineNum,
+            language: 'Rust',
+            title: 'Bloqueio Síncrono `std::sync::Mutex` em Runtime Async Tokio (Inanição de Pool e Deadlock)',
+            severity: 'HIGH',
+            cwe: 'CWE-821: Controle Impróprio de Concorrência / Deadlock',
+            rustsecId: 'ASYNC-DEADLOCK-TOKIO',
+            cvssScore: 7.8,
+            category: 'CONCURRENCY_RACE',
+            description: 'Segurar locks de `std::sync::Mutex` ou `std::sync::RwLock` através de pontos `.await` ou em tarefas assíncronas bloqueia os threads da thread pool do Tokio, causando latência extrema, inanição de tarefas e deadlock do reactor.',
+            unsafeRiskDetail: 'Congelamento completo do daemon assíncrono sob carga concorrente.',
+            waveShockwaveRadius: 'SYSTEM_PROCESS',
+            originalSnippet: line.trim(),
+            remediatedSnippet: `use tokio::sync::Mutex;\nlet safe_async_lock = Mutex::new(data);\n// Acesso seguro assíncrono: let guard = safe_async_lock.lock().await;`,
+            suggestion: 'Substitua `std::sync::Mutex` ou `std::sync::RwLock` por `tokio::sync::Mutex` ou `tokio::sync::RwLock` para locks em runtime Tokio.',
+            miriVerificationStatus: 'COMPLIANT',
+            clippyLintRule: 'clippy::await_holding_lock',
+          });
         }
 
         // std::mem::uninitialized

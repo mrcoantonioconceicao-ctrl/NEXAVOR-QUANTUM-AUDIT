@@ -114,6 +114,81 @@ impl NativeAstEngine {
                     );
                 }
             }
+
+            // 6. Detecção de Bloqueio Síncrono em Async (std::sync::Mutex / std::sync::RwLock)
+            if lang.contains("rust") && (line_trimmed.contains("std::sync::Mutex") || line_trimmed.contains("std::sync::RwLock")) {
+                if let Ok(v) = Vulnerability::new(
+                    &format!("AST-SEC-ASYNC-LOCK-{line_num}"),
+                    7.8,
+                    "Primitiva de Sincronização Bloqueante em Contexto Async Tokio",
+                    "Uso de std::sync::Mutex ou std::sync::RwLock bloqueia o thread worker do reactor Tokio, podendo causar inanição e deadlock.",
+                    path,
+                    "OWASP A04:2021-Insecure Design",
+                ) {
+                    vulns.push(
+                        v.with_line(line_num)
+                            .with_cwe("CWE-821")
+                            .with_remediation("Substituir por tokio::sync::Mutex ou tokio::sync::RwLock para operações que cruzam await points"),
+                    );
+                }
+            }
+
+            // 7. Detecção de Variáveis Globais Mutáveis (static mut - Data Race Crítico)
+            if lang.contains("rust") && (line_trimmed.starts_with("static mut ") || line_trimmed.contains(" static mut ")) {
+                if let Ok(v) = Vulnerability::new(
+                    &format!("AST-SEC-STATIC-MUT-{line_num}"),
+                    8.9,
+                    "Variável Global Mutável `static mut` (Data Race Crítico)",
+                    "Acesso a `static mut` sem sincronização atômica quebra o modelo de exclusão mútua do Rust e causa corrupção de memória.",
+                    path,
+                    "OWASP A04:2021-Insecure Design",
+                ) {
+                    vulns.push(
+                        v.with_line(line_num)
+                            .with_cwe("CWE-362")
+                            .with_remediation("Utilizar std::sync::atomic tipos ou parking_lot::RwLock / Mutex encapsulado"),
+                    );
+                }
+            }
+
+            // 8. Detecção de Transmutação Arbitrária de Tipos (std::mem::transmute)
+            if lang.contains("rust") && line_trimmed.contains("transmute") && !line_trimmed.contains("// safe") {
+                if let Ok(v) = Vulnerability::new(
+                    &format!("AST-SEC-TRANSMUTE-{line_num}"),
+                    8.2,
+                    "Transmutação Insegura de Tipos `mem::transmute`",
+                    "Transmutação direta de ponteiros ou tipos sem verificação de layout de bytes quebra invariantes de alinhamento e ABI.",
+                    path,
+                    "OWASP A06:2021-Vulnerable and Outdated Components",
+                ) {
+                    vulns.push(
+                        v.with_line(line_num)
+                            .with_cwe("CWE-843")
+                            .with_remediation("Utilizar bytemuck para conversões seguras em tempo de compilação ou traits TryFrom/TryInto"),
+                    );
+                }
+            }
+
+            // 9. Detecção de Desserialização Insegura (pickle / yaml / unserialize)
+            if line_trimmed.contains("pickle.loads(")
+                || line_trimmed.contains("unserialize(")
+                || (line_trimmed.contains("yaml.load(") && !line_trimmed.contains("safe_load") && !line_trimmed.contains("SafeLoader"))
+            {
+                if let Ok(v) = Vulnerability::new(
+                    &format!("AST-SEC-DESERIALIZE-{line_num}"),
+                    9.6,
+                    "Desserialização Insegura de Objetos Não Confiáveis",
+                    "Desserialização de payloads arbitrários permite instanciação de classes maliciosas e Execução Remota de Código (RCE).",
+                    path,
+                    "OWASP A08:2021-Software and Data Integrity Failures",
+                ) {
+                    vulns.push(
+                        v.with_line(line_num)
+                            .with_cwe("CWE-502")
+                            .with_remediation("Substituir por parsers seguros como json.loads, yaml.safe_load ou Protocol Buffers"),
+                    );
+                }
+            }
         }
 
         vulns

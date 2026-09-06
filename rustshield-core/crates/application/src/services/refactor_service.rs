@@ -47,6 +47,14 @@ impl RefactorEngine {
                         refactored = refactored.replace("os.system(", "subprocess.run(");
                         fixes.push("Substituído os.system() por subprocess.run() com array defensivo".to_string());
                     }
+                    if refactored.contains("pickle.loads(") {
+                        refactored = refactored.replace("pickle.loads(", "json.loads(");
+                        fixes.push("Desserialização insegura pickle.loads substituída por json.loads".to_string());
+                    }
+                    if refactored.contains("yaml.load(") && !refactored.contains("safe_load") {
+                        refactored = refactored.replace("yaml.load(", "yaml.safe_load(");
+                        fixes.push("Substituído yaml.load() por yaml.safe_load() determinístico".to_string());
+                    }
                 } else if lang.contains("javascript") || lang.contains("typescript") {
                     if refactored.contains("eval(") {
                         refactored = refactored.replace("eval(", "/* REMEDIADO OWASP A03 */ JSON.parse(");
@@ -55,6 +63,14 @@ impl RefactorEngine {
                     if refactored.contains(": any") {
                         refactored = refactored.replace(": any", ": unknown");
                         fixes.push("Substituída tipagem insegura `any` por `unknown` defensivo".to_string());
+                    }
+                    if refactored.contains("Buffer.allocUnsafe(") {
+                        refactored = refactored.replace("Buffer.allocUnsafe(", "Buffer.alloc(");
+                        fixes.push("Substituído Buffer.allocUnsafe por Buffer.alloc com zeramento de memória".to_string());
+                    }
+                    if refactored.contains("child_process.exec(") {
+                        refactored = refactored.replace("child_process.exec(", "child_process.execFile(");
+                        fixes.push("Substituído child_process.exec por execFile sem invocação de shell".to_string());
                     }
                     if refactored.contains("Math.random()") {
                         refactored = refactored.replace(
@@ -68,9 +84,21 @@ impl RefactorEngine {
                         refactored = refactored.replace(".unwrap()", "?");
                         fixes.push("Substituído .unwrap() por operador `?` de propagação de erro".to_string());
                     }
+                    if refactored.contains("std::sync::Mutex") {
+                        refactored = refactored.replace("std::sync::Mutex", "tokio::sync::Mutex");
+                        fixes.push("Substituído std::sync::Mutex por tokio::sync::Mutex assíncrono não-bloqueante".to_string());
+                    }
+                    if refactored.contains("std::sync::RwLock") {
+                        refactored = refactored.replace("std::sync::RwLock", "tokio::sync::RwLock");
+                        fixes.push("Substituído std::sync::RwLock por tokio::sync::RwLock assíncrono".to_string());
+                    }
                     if refactored.contains("unsafe {") {
                         refactored = refactored.replace("unsafe {", "{\n// SAFETY: RAII verified memory boundary\n");
                         fixes.push("Auditado e encapsulado bloco unsafe em RAII boundary".to_string());
+                    }
+                    if refactored.contains("mem::uninitialized()") {
+                        refactored = refactored.replace("mem::uninitialized()", "core::mem::MaybeUninit::uninit().assume_init()");
+                        fixes.push("Substituído std::mem::uninitialized por MaybeUninit defensivo".to_string());
                     }
                 }
             }

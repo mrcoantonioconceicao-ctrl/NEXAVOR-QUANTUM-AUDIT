@@ -190,20 +190,51 @@ export async function handleOsvBatchProxy(req: Request, res: Response) {
       return res.status(400).json({ error: 'Lista de queries é obrigatória.' });
     }
 
-    const osvResponse = await fetch('https://api.osv.dev/v1/querybatch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ queries }),
-    });
+    const maxRetries = 3;
+    let attempt = 0;
+    let lastError: any = null;
 
-    if (!osvResponse.ok) {
-      return res.status(osvResponse.status).json({
-        error: `OSV.dev API retornou status ${osvResponse.status}`,
-      });
+    while (attempt < maxRetries) {
+      attempt++;
+      try {
+        const osvResponse = await fetch('https://api.osv.dev/v1/querybatch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ queries }),
+          signal: AbortSignal.timeout(10000), // 10s timeout defensivo
+        });
+
+        if (osvResponse.ok) {
+          const data = await osvResponse.json();
+          return res.json(data);
+        }
+
+        if (osvResponse.status === 429 || osvResponse.status >= 500) {
+          const backoffMs = 150 * Math.pow(2, attempt) + Math.floor(Math.random() * 50);
+          console.warn(`[OSV Proxy] Status ${osvResponse.status}. Tentativa ${attempt}/${maxRetries} aguardando ${backoffMs}ms`);
+          await new Promise((resolve) => setTimeout(resolve, backoffMs));
+          continue;
+        }
+
+        return res.status(osvResponse.status).json({
+          error: `OSV.dev API retornou status ${osvResponse.status}`,
+        });
+      } catch (err: any) {
+        lastError = err;
+        const backoffMs = 200 * Math.pow(2, attempt) + Math.floor(Math.random() * 50);
+        console.warn(`[OSV Proxy] Erro de rede tentativa ${attempt}/${maxRetries}:`, err?.message);
+        if (attempt < maxRetries) {
+          await new Promise((resolve) => setTimeout(resolve, backoffMs));
+        }
+      }
     }
 
-    const data = await osvResponse.json();
-    return res.json(data);
+    console.warn('OSV.dev proxy esgotou retries:', lastError?.message);
+    return res.status(502).json({
+      error: 'Falha ao contatar a API do OSV.dev após retries com backoff.',
+      details: lastError?.message,
+      results: [],
+    });
   } catch (error: any) {
     console.warn('OSV.dev proxy error:', error);
     return res.status(502).json({

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use rustshield_domain::AuditReport;
 use serde::{Deserialize, Serialize};
-use std::sync::RwLock;
+use tokio::sync::RwLock;
 use crate::crypto::hasher::TamperProofLedger;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,8 +46,8 @@ impl AppendOnlyLedger {
         }
     }
 
-    pub fn append_report(&self, report: &AuditReport) -> Result<LedgerBlock> {
-        let mut blocks = self.blocks.write().map_err(|_| anyhow::anyhow!("Falha ao adquirir lock de escrita no ledger"))?;
+    pub async fn append_report(&self, report: &AuditReport) -> Result<LedgerBlock> {
+        let mut blocks = self.blocks.write().await;
         let prev_block = blocks.last().ok_or_else(|| anyhow::anyhow!("Ledger corrompido: sem bloco anterior"))?;
         let prev_hash = prev_block.current_hash.clone();
         let index = blocks.len();
@@ -74,23 +74,24 @@ impl AppendOnlyLedger {
         Ok(new_block)
     }
 
-    pub fn get_all_blocks(&self) -> Vec<LedgerBlock> {
-        self.blocks.read().map(|b| b.clone()).unwrap_or_default()
+    pub async fn get_all_blocks(&self) -> Vec<LedgerBlock> {
+        self.blocks.read().await.clone()
     }
 
-    pub fn verify_integrity(&self) -> bool {
-        let blocks = match self.blocks.read() {
-            Ok(b) => b,
-            Err(_) => return false,
-        };
+    pub async fn verify_integrity(&self) -> bool {
+        let blocks = self.blocks.read().await;
 
         if blocks.is_empty() {
             return false;
         }
 
         for i in 1..blocks.len() {
-            let prev = &blocks[i - 1];
-            let curr = &blocks[i];
+            let Some(prev) = blocks.get(i - 1) else {
+                return false;
+            };
+            let Some(curr) = blocks.get(i) else {
+                return false;
+            };
 
             if curr.previous_hash != prev.current_hash {
                 return false;
@@ -116,8 +117,8 @@ mod tests {
     use super::*;
     use rustshield_domain::{FairRiskEvaluation, Repository};
 
-    #[test]
-    fn test_ledger_append_and_verify() {
+    #[tokio::test]
+    async fn test_ledger_append_and_verify() {
         let ledger = AppendOnlyLedger::new();
         let report = AuditReport {
             id: "RPT-001".to_string(),
@@ -134,8 +135,8 @@ mod tests {
             previous_hash: None,
         };
 
-        let block = ledger.append_report(&report);
+        let block = ledger.append_report(&report).await;
         assert!(block.is_ok());
-        assert!(ledger.verify_integrity());
+        assert!(ledger.verify_integrity().await);
     }
 }
