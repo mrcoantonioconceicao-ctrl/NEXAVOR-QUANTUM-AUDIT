@@ -1,196 +1,25 @@
 use rustshield_domain::{SourceFile, Vulnerability};
+use crate::ast::ast_parser::{AstParser, AstParserError, ParsedAstUnit};
 
 pub struct NativeAstEngine;
 
 impl NativeAstEngine {
-    /// Executa análise sintática estática em um arquivo de código-fonte
+    /// Executa análise sintática estática segura em um arquivo de código-fonte, retornando Result<T, E>
+    pub fn scan_source_file_safe(file: &SourceFile) -> Result<Vec<Vulnerability>, AstParserError> {
+        AstParser::parse_file(file)
+    }
+
+    /// Executa análise sintática a partir de buffer de bytes com bounds-checking estrito
+    pub fn parse_raw_buffer(
+        buffer: &[u8],
+        path: &str,
+        language: &str,
+    ) -> Result<ParsedAstUnit, AstParserError> {
+        AstParser::parse_raw_buffer(buffer, path, language)
+    }
+
+    /// Wrapper determinístico compatível com a interface original, garantindo ausência de pânicos
     pub fn scan_source_file(file: &SourceFile) -> Vec<Vulnerability> {
-        let mut vulns = Vec::new();
-        let content = &file.content;
-        let path = &file.path;
-        let lang = file.language.to_lowercase();
-
-        let lines: Vec<&str> = content.lines().collect();
-
-        for (idx, line) in lines.iter().enumerate() {
-            let line_num = idx + 1;
-            let line_trimmed = line.trim();
-
-            // Ignorar comentários
-            if line_trimmed.starts_with("//") || line_trimmed.starts_with('#') || line_trimmed.starts_with("/*") {
-                continue;
-            }
-
-            // 1. Detecção de Injeção e Execução Dinâmica de Código (OWASP A03 / NIST SP 800-218)
-            if (lang.contains("python") || lang.contains("javascript") || lang.contains("typescript"))
-                && (line_trimmed.contains("eval(") || line_trimmed.contains("exec("))
-            {
-                if let Ok(v) = Vulnerability::new(
-                    &format!("AST-SEC-A03-{line_num}"),
-                    9.4,
-                    "Execução Dinâmica de Código Insegura (eval / exec)",
-                    "Uso de eval() ou exec() permite injeção arbitrária de código remoto (RCE) e quebra de sandbox.",
-                    path,
-                    "OWASP A03:2021-Injection",
-                ) {
-                    vulns.push(
-                        v.with_line(line_num)
-                            .with_cwe("CWE-95")
-                            .with_remediation("Substituir eval() por parsers seguros e estruturados (ex: serde_json / JSON.parse)"),
-                    );
-                }
-            }
-
-            // 2. Detecção de Comandos de Sistema Inseguros (Command Injection)
-            if (line_trimmed.contains("os.system(") || line_trimmed.contains("child_process.exec("))
-                && !line_trimmed.contains("execFile")
-            {
-                if let Ok(v) = Vulnerability::new(
-                    &format!("AST-SEC-CMD-{line_num}"),
-                    8.8,
-                    "Potencial Injeção de Comando no Sistema Operacional",
-                    "Execução direta de shell string sem sanitização de argumentos e sem array defensivo.",
-                    path,
-                    "OWASP A03:2021-Injection",
-                ) {
-                    vulns.push(
-                        v.with_line(line_num)
-                            .with_cwe("CWE-78")
-                            .with_remediation("Utilizar subprocess.run([arg1, arg2]) ou Command::new com argumentos isolados"),
-                    );
-                }
-            }
-
-            // 3. Detecção de Blocos Unsafe e Corrupção de Memória (Rust / C++)
-            if lang.contains("rust") && line_trimmed.contains("unsafe {") {
-                if let Ok(v) = Vulnerability::new(
-                    &format!("AST-SEC-MEM-{line_num}"),
-                    7.2,
-                    "Bloco `unsafe` Não Auditado sem Comentário // SAFETY:",
-                    "Blocos inseguros contornam as garantias de Memory Safety do compilador do Rust.",
-                    path,
-                    "OWASP A06:2021-Vulnerable and Outdated Components",
-                ) {
-                    vulns.push(
-                        v.with_line(line_num)
-                            .with_cwe("CWE-119")
-                            .with_remediation("Encapsular em abstrações RAII seguras e documentar invariantes com // SAFETY:"),
-                    );
-                }
-            }
-
-            // 4. Detecção de Pânicos e Unwrap Inseguro em Produção (Rust)
-            if lang.contains("rust") && (line_trimmed.contains(".unwrap()") || line_trimmed.contains("panic!(")) {
-                if let Ok(v) = Vulnerability::new(
-                    &format!("AST-SEC-PANIC-{line_num}"),
-                    5.3,
-                    "Chamada Insegura a .unwrap() / panic! em Caminho Crítico",
-                    "Pânico explícito causa negação de serviço (DoS) por encerramento abrupto do processo de thread.",
-                    path,
-                    "OWASP A04:2021-Insecure Design",
-                ) {
-                    vulns.push(
-                        v.with_line(line_num)
-                            .with_cwe("CWE-754")
-                            .with_remediation("Substituir unwrap() por propagação de erro idiomática via operador `?` e Result<T, E>"),
-                    );
-                }
-            }
-
-            // 5. Detecção de Geradores de Números Pseudo-Aleatórios Inseguros (Cryptographic Weakness)
-            if line_trimmed.contains("Math.random()") || line_trimmed.contains("rand::random()") {
-                if let Ok(v) = Vulnerability::new(
-                    &format!("AST-SEC-RAND-{line_num}"),
-                    6.5,
-                    "Gerador Aleatório Não Criptográfico em Contexto de Segurança",
-                    "Uso de PRNG fraco previsível em operações que exigem aleatoriedade criptograficamente segura.",
-                    path,
-                    "OWASP A02:2021-Cryptographic Failures",
-                ) {
-                    vulns.push(
-                        v.with_line(line_num)
-                            .with_cwe("CWE-330")
-                            .with_remediation("Utilizar CSPRNG como ring::rand::SystemRandom ou crypto.getRandomValues()"),
-                    );
-                }
-            }
-
-            // 6. Detecção de Bloqueio Síncrono em Async (std::sync::Mutex / std::sync::RwLock)
-            if lang.contains("rust") && (line_trimmed.contains("std::sync::Mutex") || line_trimmed.contains("std::sync::RwLock")) {
-                if let Ok(v) = Vulnerability::new(
-                    &format!("AST-SEC-ASYNC-LOCK-{line_num}"),
-                    7.8,
-                    "Primitiva de Sincronização Bloqueante em Contexto Async Tokio",
-                    "Uso de std::sync::Mutex ou std::sync::RwLock bloqueia o thread worker do reactor Tokio, podendo causar inanição e deadlock.",
-                    path,
-                    "OWASP A04:2021-Insecure Design",
-                ) {
-                    vulns.push(
-                        v.with_line(line_num)
-                            .with_cwe("CWE-821")
-                            .with_remediation("Substituir por tokio::sync::Mutex ou tokio::sync::RwLock para operações que cruzam await points"),
-                    );
-                }
-            }
-
-            // 7. Detecção de Variáveis Globais Mutáveis (static mut - Data Race Crítico)
-            if lang.contains("rust") && (line_trimmed.starts_with("static mut ") || line_trimmed.contains(" static mut ")) {
-                if let Ok(v) = Vulnerability::new(
-                    &format!("AST-SEC-STATIC-MUT-{line_num}"),
-                    8.9,
-                    "Variável Global Mutável `static mut` (Data Race Crítico)",
-                    "Acesso a `static mut` sem sincronização atômica quebra o modelo de exclusão mútua do Rust e causa corrupção de memória.",
-                    path,
-                    "OWASP A04:2021-Insecure Design",
-                ) {
-                    vulns.push(
-                        v.with_line(line_num)
-                            .with_cwe("CWE-362")
-                            .with_remediation("Utilizar std::sync::atomic tipos ou parking_lot::RwLock / Mutex encapsulado"),
-                    );
-                }
-            }
-
-            // 8. Detecção de Transmutação Arbitrária de Tipos (std::mem::transmute)
-            if lang.contains("rust") && line_trimmed.contains("transmute") && !line_trimmed.contains("// safe") {
-                if let Ok(v) = Vulnerability::new(
-                    &format!("AST-SEC-TRANSMUTE-{line_num}"),
-                    8.2,
-                    "Transmutação Insegura de Tipos `mem::transmute`",
-                    "Transmutação direta de ponteiros ou tipos sem verificação de layout de bytes quebra invariantes de alinhamento e ABI.",
-                    path,
-                    "OWASP A06:2021-Vulnerable and Outdated Components",
-                ) {
-                    vulns.push(
-                        v.with_line(line_num)
-                            .with_cwe("CWE-843")
-                            .with_remediation("Utilizar bytemuck para conversões seguras em tempo de compilação ou traits TryFrom/TryInto"),
-                    );
-                }
-            }
-
-            // 9. Detecção de Desserialização Insegura (pickle / yaml / unserialize)
-            if line_trimmed.contains("pickle.loads(")
-                || line_trimmed.contains("unserialize(")
-                || (line_trimmed.contains("yaml.load(") && !line_trimmed.contains("safe_load") && !line_trimmed.contains("SafeLoader"))
-            {
-                if let Ok(v) = Vulnerability::new(
-                    &format!("AST-SEC-DESERIALIZE-{line_num}"),
-                    9.6,
-                    "Desserialização Insegura de Objetos Não Confiáveis",
-                    "Desserialização de payloads arbitrários permite instanciação de classes maliciosas e Execução Remota de Código (RCE).",
-                    path,
-                    "OWASP A08:2021-Software and Data Integrity Failures",
-                ) {
-                    vulns.push(
-                        v.with_line(line_num)
-                            .with_cwe("CWE-502")
-                            .with_remediation("Substituir por parsers seguros como json.loads, yaml.safe_load ou Protocol Buffers"),
-                    );
-                }
-            }
-        }
-
-        vulns
+        Self::scan_source_file_safe(file).unwrap_or_default()
     }
 }

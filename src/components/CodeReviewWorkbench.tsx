@@ -14,6 +14,9 @@ import {
   Cpu,
   GitBranch,
   Box,
+  Filter,
+  ShieldAlert,
+  Atom,
 } from 'lucide-react';
 import { SecurityAuditReport } from '../domain/types.ts';
 
@@ -37,6 +40,10 @@ export const CodeReviewWorkbench: React.FC<CodeReviewWorkbenchProps> = ({
   report,
   selectedVulnId: initialVulnId,
 }) => {
+  const [filterMode, setFilterMode] = useState<
+    'ALL' | 'HIGH_MEMORY_PQC' | 'HIGH_MEMORY' | 'HIGH_PQC'
+  >('ALL');
+
   const [selectedVulnId, setSelectedVulnId] = useState<string>(
     initialVulnId || report.vulnerabilities[0]?.id || ''
   );
@@ -45,9 +52,63 @@ export const CodeReviewWorkbench: React.FC<CodeReviewWorkbenchProps> = ({
   const [generatedPatches, setGeneratedPatches] = useState<Record<string, GeneratedPatchData>>({});
   const [activePatchView, setActivePatchView] = useState<Record<string, 'STANDARD' | 'AI_GEMINI_RUST'>>({});
 
+  // Funções de classificação de severidade e categoria para isolamento pericial
+  const isHighSeverity = (v: any) =>
+    v.severity === 'CRITICAL' ||
+    v.severity === 'HIGH' ||
+    (typeof v.cvssScore === 'number' && v.cvssScore >= 7.0);
+
+  const isMemorySafety = (v: any) =>
+    v.category === 'MEMORY_SAFETY' ||
+    v.category === 'UNSAFE_UB' ||
+    v.category === 'INTEGER_OVERFLOW' ||
+    /memory|buffer|overflow|use-after-free|bounds|pointer|ub|null/i.test(
+      `${v.title || ''} ${v.description || ''} ${v.unsafeRiskDetail || ''} ${v.cwe || ''}`
+    );
+
+  const isPostQuantumCrypto = (v: any) =>
+    v.category === 'CRYPTOGRAPHIC_FAILURES' ||
+    Boolean(v.quantumRiskDetail) ||
+    /quantum|pqc|crypto|rsa|ecc|sha-1|md5|entropy|cipher|key|kyber|dilithium/i.test(
+      `${v.title || ''} ${v.description || ''} ${v.quantumRiskDetail || ''} ${v.cwe || ''}`
+    );
+
+  // Filtragem dinâmica de vulnerabilidades
+  const filteredVulnerabilities = report.vulnerabilities.filter((v) => {
+    if (filterMode === 'HIGH_MEMORY_PQC') {
+      return isHighSeverity(v) && (isMemorySafety(v) || isPostQuantumCrypto(v));
+    }
+    if (filterMode === 'HIGH_MEMORY') {
+      return isHighSeverity(v) && isMemorySafety(v);
+    }
+    if (filterMode === 'HIGH_PQC') {
+      return isHighSeverity(v) && isPostQuantumCrypto(v);
+    }
+    return true;
+  });
+
+  // Contadores para o menu de filtros
+  const countHighMemoryPqc = report.vulnerabilities.filter(
+    (v) => isHighSeverity(v) && (isMemorySafety(v) || isPostQuantumCrypto(v))
+  ).length;
+
+  const countHighMemory = report.vulnerabilities.filter(
+    (v) => isHighSeverity(v) && isMemorySafety(v)
+  ).length;
+
+  const countHighPqc = report.vulnerabilities.filter(
+    (v) => isHighSeverity(v) && isPostQuantumCrypto(v)
+  ).length;
+
+  // Garante seleção válida mesmo ao alterar o filtro
+  const effectiveVulnId = filteredVulnerabilities.some((v) => v.id === selectedVulnId)
+    ? selectedVulnId
+    : filteredVulnerabilities[0]?.id || '';
+
   const selectedVuln =
-    report.vulnerabilities.find((v) => v.id === selectedVulnId) ||
-    report.vulnerabilities[0];
+    filteredVulnerabilities.find((v) => v.id === effectiveVulnId) ||
+    filteredVulnerabilities[0] ||
+    report.vulnerabilities.find((v) => v.id === selectedVulnId);
 
   const handleCopyCode = (code: string, id: string) => {
     navigator.clipboard.writeText(code);
@@ -238,60 +299,154 @@ impl SecurityRemediationService {
       {/* Main Workbench: Left List & Right Diff Viewer */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Vulnerability Sidebar */}
-        <div className="lg:col-span-4 rounded border border-zinc-800 bg-zinc-950 p-4 space-y-2">
+        <div className="lg:col-span-4 rounded border border-zinc-800 bg-zinc-950 p-4 space-y-3">
           <div className="text-[10px] font-bold text-zinc-500 px-2 py-1 font-mono uppercase tracking-widest flex items-center justify-between">
-            <span>Vulnerabilidades ({report.vulnerabilities.length})</span>
+            <span>Vulnerabilidades</span>
+            <span className="text-zinc-400 font-bold font-mono">
+              {filteredVulnerabilities.length} de {report.vulnerabilities.length}
+            </span>
           </div>
 
-          <div className="space-y-1.5 max-h-[640px] overflow-y-auto pr-1">
-            {report.vulnerabilities.map((vuln) => {
-              const isSelected = selectedVuln?.id === vuln.id;
-              const hasAiPatch = !!generatedPatches[vuln.id];
+          {/* Menu de Filtragem de Alta Severidade (Memory Safety & Post-Quantum Crypto) */}
+          <div className="space-y-1.5 pb-2.5 border-b border-zinc-800">
+            <div className="flex items-center gap-1.5 text-xs font-mono text-zinc-400 mb-1">
+              <Filter className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+              <span className="text-[11px] font-bold text-zinc-300">Isolamento por Perfil de Risco:</span>
+            </div>
 
-              return (
-                <button
-                  key={vuln.id}
-                  onClick={() => setSelectedVulnId(vuln.id)}
-                  className={`w-full text-left p-3 rounded border transition-all text-xs space-y-1 ${
-                    isSelected
-                      ? 'border-zinc-700 bg-zinc-900 text-white shadow-xs'
-                      : 'border-zinc-800/80 bg-zinc-950/80 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded font-mono uppercase tracking-wider ${
-                          vuln.severity === 'CRITICAL'
-                            ? 'bg-red-500/10 text-red-400 border border-red-500/20'
-                            : vuln.severity === 'HIGH'
-                            ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                            : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
-                        }`}
-                      >
-                        {vuln.severity}
+            <button
+              onClick={() => setFilterMode('ALL')}
+              className={`w-full text-left px-2.5 py-1.5 rounded text-[11px] font-mono flex items-center justify-between transition-colors cursor-pointer ${
+                filterMode === 'ALL'
+                  ? 'bg-zinc-800 text-white font-bold border border-zinc-700'
+                  : 'bg-zinc-900/50 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
+              }`}
+            >
+              <span>Todas as Falhas</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-zinc-800/80 text-zinc-400 font-mono font-bold">
+                {report.vulnerabilities.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setFilterMode('HIGH_MEMORY_PQC')}
+              className={`w-full text-left px-2.5 py-1.5 rounded text-[11px] font-mono flex items-center justify-between transition-colors cursor-pointer ${
+                filterMode === 'HIGH_MEMORY_PQC'
+                  ? 'bg-amber-950/80 text-amber-300 font-bold border border-amber-500/50 shadow-xs'
+                  : 'bg-zinc-900/50 text-zinc-400 hover:text-amber-300 hover:bg-zinc-900'
+              }`}
+            >
+              <div className="flex items-center gap-1.5 truncate pr-1">
+                <ShieldAlert className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                <span className="truncate">Alta Severidade (Memory Safety & PQC)</span>
+              </div>
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono font-bold shrink-0">
+                {countHighMemoryPqc}
+              </span>
+            </button>
+
+            <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+              <button
+                onClick={() => setFilterMode('HIGH_MEMORY')}
+                className={`text-left px-2 py-1 rounded text-[10px] font-mono flex items-center justify-between transition-colors cursor-pointer ${
+                  filterMode === 'HIGH_MEMORY'
+                    ? 'bg-red-950/80 text-red-300 font-bold border border-red-500/50'
+                    : 'bg-zinc-900/40 text-zinc-400 hover:text-red-300 hover:bg-zinc-900'
+                }`}
+              >
+                <span className="truncate">Memory Safety</span>
+                <span className="text-[9px] px-1 rounded bg-red-500/20 text-red-300 font-mono font-bold">
+                  {countHighMemory}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setFilterMode('HIGH_PQC')}
+                className={`text-left px-2 py-1 rounded text-[10px] font-mono flex items-center justify-between transition-colors cursor-pointer ${
+                  filterMode === 'HIGH_PQC'
+                    ? 'bg-purple-950/80 text-purple-300 font-bold border border-purple-500/50'
+                    : 'bg-zinc-900/40 text-zinc-400 hover:text-purple-300 hover:bg-zinc-900'
+                }`}
+              >
+                <span className="truncate flex items-center gap-1">
+                  <Atom className="h-2.5 w-2.5 text-purple-400 shrink-0" />
+                  <span>Cripto PQC</span>
+                </span>
+                <span className="text-[9px] px-1 rounded bg-purple-500/20 text-purple-300 font-mono font-bold">
+                  {countHighPqc}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-1.5 max-h-[580px] overflow-y-auto pr-1">
+            {filteredVulnerabilities.length === 0 ? (
+              <div className="p-4 text-center text-xs text-zinc-500 font-mono border border-dashed border-zinc-800 rounded">
+                Nenhuma vulnerabilidade encontrada para o filtro selecionado.
+              </div>
+            ) : (
+              filteredVulnerabilities.map((vuln) => {
+                const isSelected = selectedVuln?.id === vuln.id;
+                const hasAiPatch = !!generatedPatches[vuln.id];
+                const isMem = isMemorySafety(vuln);
+                const isPqc = isPostQuantumCrypto(vuln);
+
+                return (
+                  <button
+                    key={vuln.id}
+                    onClick={() => setSelectedVulnId(vuln.id)}
+                    className={`w-full text-left p-3 rounded border transition-all text-xs space-y-1.5 ${
+                      isSelected
+                        ? 'border-zinc-700 bg-zinc-900 text-white shadow-xs'
+                        : 'border-zinc-800/80 bg-zinc-950/80 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <span
+                          className={`text-[9px] font-bold px-1.5 py-0.5 rounded font-mono uppercase tracking-wider ${
+                            vuln.severity === 'CRITICAL'
+                              ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                              : vuln.severity === 'HIGH'
+                              ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                              : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+                          }`}
+                        >
+                          {vuln.severity}
+                        </span>
+                        {isMem && (
+                          <span className="text-[8px] px-1 py-0.5 rounded bg-red-950/80 text-red-300 border border-red-500/30 font-mono">
+                            Memory
+                          </span>
+                        )}
+                        {isPqc && (
+                          <span className="text-[8px] px-1 py-0.5 rounded bg-purple-950/80 text-purple-300 border border-purple-500/30 font-mono flex items-center gap-0.5">
+                            <Atom className="h-2 w-2 text-purple-400" />
+                            <span>PQC</span>
+                          </span>
+                        )}
+                        {vuln.language && (
+                          <span className="text-[9px] px-1 py-0.5 rounded bg-zinc-800 text-emerald-400 font-mono">
+                            {vuln.language}
+                          </span>
+                        )}
+                        {hasAiPatch && (
+                          <span className="text-[9px] px-1 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-500/30 font-mono font-bold flex items-center gap-1">
+                            <Sparkles className="h-2.5 w-2.5 text-purple-400" />
+                            <span>Patch Rust</span>
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] font-mono text-zinc-500 truncate shrink-0">
+                        {vuln.file.split('/').pop()}:{vuln.line}
                       </span>
-                      {vuln.language && (
-                        <span className="text-[9px] px-1 py-0.5 rounded bg-zinc-800 text-emerald-400 font-mono">
-                          {vuln.language}
-                        </span>
-                      )}
-                      {hasAiPatch && (
-                        <span className="text-[9px] px-1 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-500/30 font-mono font-bold flex items-center gap-1">
-                          <Sparkles className="h-2.5 w-2.5 text-purple-400" />
-                          <span>Patch Rust IA</span>
-                        </span>
-                      )}
                     </div>
-                    <span className="text-[10px] font-mono text-zinc-500 truncate">
-                      {vuln.file.split('/').pop()}:{vuln.line}
-                    </span>
-                  </div>
-                  <div className="font-semibold text-zinc-200 line-clamp-1 font-mono">{vuln.title}</div>
-                  <div className="text-[11px] text-zinc-500 font-mono">{vuln.cwe}</div>
-                </button>
-              );
-            })}
+                    <div className="font-semibold text-zinc-200 line-clamp-1 font-mono">{vuln.title}</div>
+                    <div className="text-[11px] text-zinc-500 font-mono">{vuln.cwe}</div>
+                  </button>
+                );
+              })
+            )}
           </div>
         </div>
 

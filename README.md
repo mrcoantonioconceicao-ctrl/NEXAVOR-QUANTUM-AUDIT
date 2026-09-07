@@ -19,8 +19,9 @@
 O **RustShield Quantum (NEXAVOR-QUANTUM-AUDIT)** é uma plataforma unificada de engenharia DevSecOps de missão crítica, governança regulatória (GRC), refatoração automatizada de código legado, análise relacional em grafo (GraphRAG) e preparação criptográfica pós-quântica (PQC).
 
 Projetada com uma arquitetura **Domain-Driven Design (DDD)** e implementada com um núcleo nativo de alta performance em **Rust 1.70+**, a plataforma combina:
-1. **Análise Estática Poliglota e Refatoração Determinística (AST + Google Gemini AI Engine)** com proteção contra sobrescrita e abertura de Pull Requests automáticos no GitHub.
-2. **Knowledge Graph Ontology & GraphRAG Neo4j Engine (`schema.ts` + `GraphSyncService.ts`)**: Mapeamento formal de grafos de conhecimento com suporte a Cypher DDL/DML, restrições de unicidade (`CREATE CONSTRAINT`) e índices (`CREATE INDEX`) para nós `:CodeFile`, `:ASTFunction`, `:CryptoAlgorithm`, `:Vulnerability`, `:ComplianceRule` e `:SBOMPackage`.
+1. **Análise Estática Poliglota e Refatoração Determinística (AST + Google Gemini AI Engine)** com motor de envio atômico em lote via **GitHub Git Data API (`/server/githubGitService.ts`)** usando `@octokit/rest` para comitar simultaneamente múltiplos arquivos refatorados em um único commit atômico no Pull Request.
+2. **CodeReviewWorkbench & Isolamento Pericial de Riscos (`CodeReviewWorkbench.tsx`)**: Painel interativo com filtragem avançada por perfil de risco, permitindo isolar instantaneamente falhas de alta severidade em **Memory Safety** (corrupção de memória, UB, ponteiros brutos) e **Post-Quantum Cryptography (PQC)** (algoritmos vulneráveis ao Q-Day).
+3. **Knowledge Graph Ontology & GraphRAG Neo4j Engine (`schema.ts` + `GraphSyncService.ts`)**: Mapeamento formal de grafos de conhecimento com suporte a Cypher DDL/DML, restrições de unicidade (`CREATE CONSTRAINT`) e índices (`CREATE INDEX`) para nós `:CodeFile`, `:ASTFunction`, `:CryptoAlgorithm`, `:Vulnerability`, `:ComplianceRule` e `:SBOMPackage`.
 3. **Orquestrador RAG Híbrido (`HybridRAGService.ts`)**: Busca paralela combinando busca semântica em vetores (`pgvector`/`Qdrant`) e travessia relacional de grafos (`Neo4j Cypher`), com reranking ponderado e telemetria de latência em tempo real.
 4. **Visualizador Interativo GraphRAG com Framer Motion (`GraphRagVisualizer.tsx`)**: Animações de entrada *spring*, auras luminosas para vulnerabilidades e regras de compliance, inspeção de subgrafos de impacto multi-hop e **Sistema de Snapshots da Análise** (salvamento de estado de zoom, filtros e seleção no `localStorage` com restauração e exportação JSON em 1-clique).
 5. **Cockpit de Fuzzing Contínuo (`Cargo-Fuzz` / `LibFuzzer` + AddressSanitizer)** com análise pericial de corpora, mutadores e isolamento de falhas de memória.
@@ -142,11 +143,23 @@ cargo +nightly fuzz run ast_parser -- -max_total_time=120 -jobs=8
 
 ---
 
-### 4. 🪄 Studio de Refatoração AST + IA & 1-Click Pull Request
-Transformação determinística de código legado em código seguro:
+### 4. 🪄 Studio de Refatoração AST + IA & Envio Atômico em Lote (Git Data API)
+Transformação determinística de código legado em código seguro e integração contínua com o GitHub:
 - **Modos de Refatoração**: `IN_PLACE`, `RUST` e `GO`.
 - **Proteção de Arquivos**: Bloqueio contra sobrescrita acidental em manifestos (`Cargo.toml`, `package.json`, `.env`, `Dockerfile`).
-- **1-Click Pull Request**: Abertura automatizada de PRs no GitHub com branch isolada.
+- **Motor de Envio Atômico em Lote (`githubGitService.ts`)**: Utiliza a **GitHub Git Data API** (`Blobs` -> `Tree` -> `Commit` -> `UpdateRef`) com `@octokit/rest` para enviar simultaneamente múltiplos arquivos refatorados (ex: `ast_parser.rs`, `Cargo.toml`, `package.json`, `audit_log.rs`, `lib.rs`) em um único commit atômico.
+- **Padronização de Mensagens de Commit**:
+  - Remediações de segurança: `fix(security): remediação automática de dependências e memory safety via RustShield`
+  - Refatorações sintáticas: `refactor(ast-ai): remediação completa e refatoração de código legado [RustShield Quantum]`
+- **1-Click Pull Request**: Abertura automatizada de PRs no GitHub com branch isolada (`rustshield-patch-*` ou `rustshield-legacy-refactor-*`).
+
+---
+
+### 5. 🔍 CodeReviewWorkbench & Isolamento Pericial de Riscos
+Painel interativo para revisão e homologação técnica de vulnerabilidades:
+- **Filtragem por Perfil de Risco**: Botões rápidos para isolar falhas de alta severidade (CVSS >= 7.0 / Critical / High).
+- **Filtro de Memory Safety**: Isola falhas de integridade de memória, corrupção de buffer, vazamento e uso de `unsafe`.
+- **Filtro de Post-Quantum Cryptography (PQC)**: Destaca vulnerabilidades em algoritmos clássicos suscetíveis ao Q-Day (RSA/ECC) e impulsiona a migração para FIPS 203/204/205.
 
 ---
 

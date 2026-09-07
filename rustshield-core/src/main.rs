@@ -74,7 +74,7 @@ async fn main() -> Result<()> {
         }
         Commands::Sbom { path: _, output } => {
             let sample_deps = vec![
-                rustshield_domain::Dependency::new("tokio", "1.35.0", rustshield_domain::Ecosystem::Cargo)?,
+                rustshield_domain::Dependency::new("tokio", "1.40.0", rustshield_domain::Ecosystem::Cargo)?,
                 rustshield_domain::Dependency::new("serde", "1.0.195", rustshield_domain::Ecosystem::Cargo)?,
             ];
 

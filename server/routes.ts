@@ -4,6 +4,7 @@ import { MCPServer } from '../src/mcp/server.ts';
 import { analyzePolyglotStaticPatterns } from '../src/domain/polyglotStaticEngine.ts';
 import { GraphSyncService } from '../src/domain/knowledgeGraph/GraphSyncService.ts';
 import { HybridRAGFusionService } from '../src/domain/knowledgeGraph/HybridRAGFusionService.ts';
+import { pushMultipleFilesToBranch, FileToCommit } from './githubGitService';
 
 import {
   runGeminiDeepAudit,
@@ -1080,19 +1081,30 @@ export async function handleCreateGitHubPullRequest(req: Request, res: Response)
       });
     }
 
-    // 3. For each patch, update manifest file on branch
+    // 3. For each patch, compute patched file content and batch commit
+    const filesToCommit: FileToCommit[] = [];
     const updatedFiles: string[] = [];
+
+    // Support any explicit filesToCommit in request body (e.g. 12 files from memory)
+    if (Array.isArray(req.body.filesToCommit) && req.body.filesToCommit.length > 0) {
+      for (const item of req.body.filesToCommit) {
+        if (item && item.path && typeof item.content === 'string') {
+          filesToCommit.push({
+            path: item.path,
+            content: item.content,
+          });
+          updatedFiles.push(item.path);
+        }
+      }
+    }
+
     for (const patch of patches) {
       const { manifestPath, packageName, targetVersion } = patch as CreatePrPatchItem;
       const normalizedPath = manifestPath.trim().replace(/^\/+/, '').replace(/^\.\//, '');
       const encodedPathForUrl = normalizedPath.split('/').map(encodeURIComponent).join('/');
-      const fileUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${encodedPathForUrl}?ref=${branchName}`;
+      const fileUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${encodedPathForUrl}?ref=${targetBranch}`;
       
       let fileRes = await fetch(fileUrl, { headers });
-      if (!fileRes.ok) {
-        // Fallback to base branch
-        fileRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${encodedPathForUrl}?ref=${targetBranch}`, { headers });
-      }
       if (!fileRes.ok) continue;
 
       const fileData = await fileRes.json();
@@ -1130,33 +1142,30 @@ export async function handleCreateGitHubPullRequest(req: Request, res: Response)
       }
 
       if (patchedContent !== currentContent) {
-        const cleanPatchBase64 = Buffer.from(patchedContent, 'utf-8')
-          .toString('base64')
-          .replace(/(\r\n|\n|\r)/g, "");
-
-        const patchPayload: Record<string, string> = {
-          message: `fix(security): update ${packageName} to safe version ${targetVersion} [RustShield Quantum]`,
-          content: cleanPatchBase64,
-          branch: branchName,
-        };
-
-        if (fileData.sha && typeof fileData.sha === 'string' && fileData.sha.trim().length > 0) {
-          patchPayload.sha = fileData.sha.trim();
+        const existingIdx = filesToCommit.findIndex((f) => f.path === normalizedPath);
+        if (existingIdx >= 0) {
+          filesToCommit[existingIdx].content = patchedContent;
+        } else {
+          filesToCommit.push({
+            path: normalizedPath,
+            content: patchedContent,
+          });
         }
 
-        const putRes = await fetch(fileUrl, {
-          method: 'PUT',
-          headers,
-          body: JSON.stringify(patchPayload),
-        });
-
-        if (putRes.ok) {
+        if (!updatedFiles.includes(normalizedPath)) {
           updatedFiles.push(normalizedPath);
-        } else {
-          const errText = await putRes.text().catch(() => '');
-          console.error(`[RustShield Q-Audit Backend] Erro ao comitar patch para ${normalizedPath} (HTTP ${putRes.status}):`, errText);
         }
       }
+    }
+
+    // Atomic Push via Git Data API (Blobs -> Tree -> Commit -> UpdateRef)
+    if (filesToCommit.length > 0) {
+      console.log(`[RustShield Q-Audit Backend] Enviando ${filesToCommit.length} arquivo(s) atomicamente via Git Data API para branch '${branchName}'...`);
+      await pushMultipleFilesToBranch(owner, repo, branchName, filesToCommit, {
+        token,
+        commitMessage: `fix(security): remediação automática de dependências e memory safety via RustShield`,
+        force: true,
+      });
     }
 
     // 4. Create Pull Request on GitHub
@@ -1498,77 +1507,70 @@ export async function handleCreateRefactorPullRequest(req: Request, res: Respons
       });
     }
 
-    // Converter conteúdo refatorado para Base64 e remover quebras de linha
-    const cleanBase64Content = Buffer.from(refactoredContent, 'utf-8')
-      .toString('base64')
-      .replace(/(\r\n|\n|\r)/g, "");
+    // Montar lista de arquivos para commit
+    const refactorFilesToCommit: FileToCommit[] = [];
 
-    // Montar payload
-    const putPayload: Record<string, string> = {
-      message: `refactor(ast-ai): refatoração guiada por AST + Gemini IA em ${normalizedFilePath} [RustShield Quantum]`,
-      content: cleanBase64Content,
-      branch: branchName,
-    };
-
-    if (fileSha) {
-      putPayload.sha = fileSha;
+    if (Array.isArray(req.body.filesToCommit) && req.body.filesToCommit.length > 0) {
+      for (const item of req.body.filesToCommit) {
+        if (item && item.path && typeof item.content === 'string') {
+          refactorFilesToCommit.push({
+            path: item.path,
+            content: item.content,
+          });
+        }
+      }
     }
 
-    console.log(`[RustShield Q-Audit Backend] Passo 3: Efetuando commit/upload do arquivo físico refatorado em PUT /contents/${encodedPathForUrl}...`);
-    
-    let putRes: globalThis.Response;
+    if (!refactorFilesToCommit.some((f) => f.path === normalizedFilePath)) {
+      refactorFilesToCommit.push({
+        path: normalizedFilePath,
+        content: refactoredContent,
+      });
+    }
+
+    console.log(`[RustShield Q-Audit Backend] Passo 3: Efetuando commit em lote de ${refactorFilesToCommit.length} arquivo(s) refatorado(s) via Git Data API na branch '${branchName}'...`);
+    let commitSha = 'COMMIT_SUCCESS';
     try {
-      putRes = await fetch(fileUrl, {
+      commitSha = await pushMultipleFilesToBranch(owner, repo, branchName, refactorFilesToCommit, {
+        token,
+        commitMessage: `refactor(ast-ai): remediação completa e refatoração de código legado [RustShield Quantum]`,
+        force: true,
+      });
+    } catch (pushErr: any) {
+      console.warn('[RustShield Q-Audit Backend] Falha ao enviar via Git Data API, tentando fallback via PUT /contents...', pushErr?.message);
+      
+      // Fallback via PUT /contents para o arquivo principal
+      const cleanBase64Content = Buffer.from(refactoredContent, 'utf-8')
+        .toString('base64')
+        .replace(/(\r\n|\n|\r)/g, "");
+
+      const putPayload: Record<string, string> = {
+        message: `refactor(ast-ai): refatoração guiada por AST + Gemini IA em ${normalizedFilePath} [RustShield Quantum]`,
+        content: cleanBase64Content,
+        branch: branchName,
+      };
+
+      if (fileSha) {
+        putPayload.sha = fileSha;
+      }
+
+      const putRes = await fetch(fileUrl, {
         method: 'PUT',
         headers,
         body: JSON.stringify(putPayload),
       });
-    } catch (fetchErr: any) {
-      console.error('[RustShield Q-Audit Backend] Exceção de rede ao comitar arquivo no GitHub:', fetchErr);
-      return res.status(500).json({
-        error: 'Erro de comunicação de rede ao tentar realizar commit no GitHub.',
-        details: fetchErr?.message || String(fetchErr),
-      });
-    }
 
-    // If 409 or 422 occurred, attempt retry by re-fetching SHA
-    if (!putRes.ok && (putRes.status === 409 || putRes.status === 422)) {
-      console.warn(`[RustShield Q-Audit Backend] Tentando auto-recuperação do SHA para commit (HTTP ${putRes.status})...`);
-      try {
-        const refetchRes = await fetch(fileUrl, { headers });
-        if (refetchRes.ok) {
-          const freshData = await refetchRes.json();
-          if (freshData?.sha) {
-            putPayload.sha = freshData.sha;
-            putRes = await fetch(fileUrl, {
-              method: 'PUT',
-              headers,
-              body: JSON.stringify(putPayload),
-            });
-          }
-        }
-      } catch {}
-    }
-
-    if (!putRes.ok) {
-      let putErr = '';
-      try {
-        const errJson = await putRes.json();
-        console.error(`[RustShield Q-Audit Backend] Passo 3 CRÍTICO: GitHub rejeitou payload do commit (HTTP ${putRes.status}):`, JSON.stringify(errJson, null, 2));
-        putErr = typeof errJson === 'object' ? JSON.stringify(errJson) : String(errJson);
-      } catch {
-        putErr = await putRes.text().catch(() => '');
-        console.error(`[RustShield Q-Audit Backend] Passo 3 CRÍTICO: Falha ao comitar arquivo refatorado! HTTP ${putRes.status}:`, putErr);
+      if (!putRes.ok) {
+        const putErrText = await putRes.text().catch(() => '');
+        return res.status(putRes.status).json({
+          error: `Falha ao realizar commit do arquivo refatorado na branch '${branchName}' (HTTP ${putRes.status}).`,
+          details: putErrText,
+        });
       }
 
-      return res.status(putRes.status).json({
-        error: `Falha ao realizar commit do arquivo refatorado na branch '${branchName}' (HTTP ${putRes.status}).`,
-        details: putErr,
-      });
+      const putData = await putRes.json().catch(() => ({}));
+      commitSha = putData.commit?.sha || putData.content?.sha || 'COMMIT_SUCCESS';
     }
-
-    const putData = await putRes.json().catch(() => ({}));
-    const commitSha = putData.commit?.sha || putData.content?.sha || 'COMMIT_SUCCESS';
     console.log(`[RustShield Q-Audit Backend] Passo 3 Sucesso: Arquivo Físico Refatorado Commitado com Sucesso! SHA = ${commitSha}`);
 
     // 4. Somente após sucesso confirmado do commit do arquivo físico, abrir o Pull Request (Passo 4)

@@ -13,6 +13,8 @@ arbitrary = { version = "1.3", features = ["derive"] }
 rustshield-domain = { path = "../crates/domain" }
 rustshield-infrastructure = { path = "../crates/infrastructure" }
 rustshield-application = { path = "../crates/application" }
+borsh = { version = "1.5.3", features = ["derive"] }
+tokio = { version = "1.40.0", features = ["full"] }
 
 [[bin]]
 name = "ast_parser"

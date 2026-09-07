@@ -49,9 +49,10 @@ version = "0.7.18"
 edition = "2015"
 
 [dependencies]
-futures = "0.1.29"
-tokio = "0.1.22"
-bytes = "0.4.12"`,
+futures = "0.3.30"
+tokio = { version = "1.40.0", features = ["full"] }
+bytes = "1.7.1"
+borsh = "1.5.3"`,
       },
       {
         path: 'src/cell.rs',
@@ -619,11 +620,13 @@ edition = "2021"
 [dependencies]
 anchor-lang = "0.29.0"
 anchor-spl = "0.29.0"
-solana-program = "1.18.0"`,
+solana-program = "1.18.0"
+borsh = "1.5.3"
+tokio = { version = "1.40.0", features = ["full"] }`,
       },
       {
         path: 'programs/solana-anchor-vault/src/lib.rs',
-        size: 2150,
+        size: 2320,
         language: 'Rust',
         content: `use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
@@ -658,11 +661,11 @@ pub mod solana_anchor_vault {
         Ok(())
     }
 
-    // VULNERABILIDADE: Validação ausente de owner da conta destino em saques de emergência
+    // REMEDIADO VIA PR #2: Validação rigorosa de recipient e verificação criptográfica de signatário
     pub fn emergency_withdraw(ctx: Context<EmergencyWithdraw>, amount: u64) -> Result<()> {
+        require_keys_eq!(ctx.accounts.recipient.key(), ctx.accounts.vault_state.owner, VaultError::InvalidRecipient);
         let vault = &mut ctx.accounts.vault_state;
-        // Inseguro: falta verificar se ctx.accounts.recipient coincide com o vault.owner estrito
-        vault.total_staked = vault.total_staked.saturating_sub(amount);
+        vault.total_staked = vault.total_staked.checked_sub(amount).ok_or(VaultError::CalculationOverflow)?;
         Ok(())
     }
 }
@@ -690,10 +693,9 @@ pub struct DepositFunds<'info> {
 
 #[derive(Accounts)]
 pub struct EmergencyWithdraw<'info> {
-    #[account(mut)]
+    #[account(mut, has_one = owner)]
     pub vault_state: Account<'info, VaultState>,
-    /// CHECK: Conta de destino de emergência sem validação de assinatura estrita
-    #[account(mut)]
+    #[account(mut, constraint = recipient.key() == vault_state.owner @ VaultError::InvalidRecipient)]
     pub recipient: AccountInfo<'info>,
     pub owner: Signer<'info>,
 }
@@ -711,6 +713,8 @@ pub enum VaultError {
     ZeroDepositAmount,
     #[msg("Estouro numerico detectado no calculo.")]
     CalculationOverflow,
+    #[msg("Conta de destino nao autorizada para saque emergencial.")]
+    InvalidRecipient,
 }`,
       },
     ],

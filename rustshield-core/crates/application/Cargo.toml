@@ -18,3 +18,4 @@ tracing.workspace = true
 chrono.workspace = true
 uuid.workspace = true
 anyhow.workspace = true
+borsh = { version = "1.5.3", features = ["derive"], optional = true }
