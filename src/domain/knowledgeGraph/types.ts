@@ -105,6 +105,8 @@ export interface HybridRAGQueryResult {
   graphResult: GraphSubgraphResult;
   fusedContext: FusedContextItem[];
   contextPrompt: string;
+  graphContextAvailable?: boolean;
+  circuitBreakerTriggered?: boolean;
   aiDiagnosticRationale?: string;
   metrics: {
     vectorRetrievalMs: number;

@@ -68,6 +68,7 @@ const NORMATIVE_VECTOR_KNOWLEDGE_BASE: VectorChunk[] = [
 export class HybridRAGFusionService {
   /**
    * Executa a Busca Híbrida Paralela (Vector RAG + GraphRAG)
+   * Possui suporte a Circuit Breaker / Graceful Degradation com Timeout de 1500ms para Neo4j/GraphRAG.
    */
   public static async executeHybridQuery(request: HybridRAGQueryRequest): Promise<HybridRAGQueryResult> {
     const startTotal = Date.now();
@@ -76,28 +77,71 @@ export class HybridRAGFusionService {
     const graphWeight = request.graphWeight ?? 0.5;
     const topK = request.topK ?? 5;
 
-    // === PATH 1: Vector RAG (Busca Semântica Vetorial) ===
+    // === PATH 1: Vector RAG (Busca Semântica Vetorial Qdrant/pgvector) ===
     const startVector = Date.now();
     const vectorResults = this.performVectorSearch(query, topK);
     const vectorRetrievalMs = Date.now() - startVector;
 
-    // === PATH 2: GraphRAG (Navegação em Grafo de Conhecimento) ===
+    // === PATH 2: GraphRAG com Circuit Breaker (>1500ms timeout ou falha de conexão) ===
     const startGraph = Date.now();
     const targetFile = request.targetFileOrFunction || 'programs/solana_sandbox_counter/src/lib.rs';
-    const graphResult = this.performGraphSearch(targetFile);
+
+    let graphResult: GraphSubgraphResult;
+    let graphContextAvailable = true;
+    let circuitBreakerTriggered = false;
+
+    try {
+      // Circuit Breaker: Timeout de 1500ms rígido para consulta de grafo Neo4j
+      const graphPromise = new Promise<GraphSubgraphResult>((resolve, reject) => {
+        try {
+          const res = this.performGraphSearch(targetFile);
+          resolve(res);
+        } catch (e) {
+          reject(e);
+        }
+      });
+
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('GRAPH_RAG_TIMEOUT_EXCEEDED (>1500ms)')), 1500);
+      });
+
+      graphResult = await Promise.race([graphPromise, timeoutPromise]);
+    } catch (graphError: any) {
+      circuitBreakerTriggered = true;
+      graphContextAvailable = false;
+      console.warn(
+        `[HybridRAG Circuit Breaker] Falha ou timeout no Grafo de Conhecimento Neo4j: ${graphError?.message || graphError}. Ativando modo Graceful Degradation para Vetor Puro.`
+      );
+
+      // Subgrafo Vazio de Fallback
+      graphResult = {
+        nodes: [],
+        relationships: [],
+        cypherMatchQuery: '// Circuit Breaker Ativado: Neo4j inacessível ou timeout > 1500ms',
+        relevanceScore: 0.0,
+        relationshipPathSummary: [
+          '[CIRCUIT BREAKER] Grafo temporariamente indisponível. Resultados baseados exclusivamente em Vector RAG.',
+        ],
+      };
+    }
+
     const graphRetrievalMs = Date.now() - startGraph;
 
     // === PATH 3: Context Fusion & Reranking ===
     const startFusion = Date.now();
-    const fusedContext = this.fuseAndRerank(vectorResults, graphResult, vectorWeight, graphWeight, topK);
+    const fusedContext = this.fuseAndRerank(
+      vectorResults,
+      graphResult,
+      graphContextAvailable ? vectorWeight : 1.0,
+      graphContextAvailable ? graphWeight : 0.0,
+      topK
+    );
     const fusionMs = Date.now() - startFusion;
 
     // === CONTEXT PROMPT COMPOSER ===
-    const contextPrompt = this.buildEnrichedGeminiPrompt(query, fusedContext, graphResult);
+    const contextPrompt = this.buildEnrichedGeminiPrompt(query, fusedContext, graphResult, graphContextAvailable);
 
     const totalMs = Date.now() - startTotal;
-
-    const graph = GraphSyncService.getGraph();
 
     return {
       query,
@@ -105,7 +149,11 @@ export class HybridRAGFusionService {
       graphResult,
       fusedContext,
       contextPrompt,
-      aiDiagnosticRationale: `[DIAGNÓSTICO RAG HÍBRIDO NEXAVOR] O pipeline recuperou ${vectorResults.length} trechos normativos via Vector RAG e ${graphResult.nodes.length} nós estruturados via GraphRAG. A fusão identificou 2 não-conformidades críticas: (1) Ausência de validação checked_add() em 'lib.rs' violando NIST SP 800-218 PW.4.1; (2) Uso de criptossistema clássico RSA-2048 violando FIPS 204 (ML-DSA).`,
+      graphContextAvailable,
+      circuitBreakerTriggered,
+      aiDiagnosticRationale: graphContextAvailable
+        ? `[DIAGNÓSTICO RAG HÍBRIDO NEXAVOR] O pipeline recuperou ${vectorResults.length} trechos normativos via Vector RAG e ${graphResult.nodes.length} nós estruturados via GraphRAG. A fusão identificou não-conformidades críticas (NIST SP 800-218 e FIPS 204).`
+        : `[GRACEFUL DEGRADATION ATIVADO] O Grafo Neo4j falhou/expirou (>1500ms). RAG Híbrido operando em modo isolado de Vetor Puro (Qdrant/pgvector) com ${vectorResults.length} chunks normativos recuperados.`,
       metrics: {
         vectorRetrievalMs,
         graphRetrievalMs,
@@ -220,7 +268,8 @@ export class HybridRAGFusionService {
   private static buildEnrichedGeminiPrompt(
     userQuery: string,
     fusedItems: FusedContextItem[],
-    graphResult: GraphSubgraphResult
+    graphResult: GraphSubgraphResult,
+    graphContextAvailable = true
   ): string {
     const fusedSection = fusedItems
       .map(
@@ -233,6 +282,7 @@ export class HybridRAGFusionService {
     return `
 SYSTEM INSTRUCTION: NEXAVOR QUANTUM AUDIT - GEMINI HYBRID RAG ENGINE
 Você é o auditor principal de segurança DevSecOps. Utilize o CONTEXTO HÍBRIDO FUSIONADO abaixo (proveniente do Vector RAG e do Grafo de Conhecimento GraphRAG) para responder de forma técnica, exata e sem alucinações.
+[METADADOS RAG] graphContextAvailable: ${graphContextAvailable}
 
 === REQUISIÇÃO DO USUÁRIO ===
 "${userQuery}"

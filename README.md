@@ -1,36 +1,35 @@
-# 🛡️ RustShield Quantum — Secure Core (v2.0)
-#### High-Performance, Memory-Safe AppSec, GRC Governance, AST Refactor, GraphRAG & Post-Quantum Static Analysis Engine
+# 🛡️ RustShield Quantum — Secure Core (v2.2)
+#### High-Performance, Memory-Safe AppSec, GRC Governance, AST Refactor, GraphRAG, Axum IPC Daemon & Post-Quantum Static Analysis Engine
 
 [![CI/CD Security Gate](https://img.shields.io/badge/Security%20Gate-100%25%20Verified-00C853?style=for-the-badge&logo=rust&logoColor=white)](https://github.com/mrcoantonioconceicao-ctrl/NEXAVOR-QUANTUM-AUDIT)
 [![Enterprise Grade](https://img.shields.io/badge/Enterprise%20Grade-Native%20Rust%201.70%2B-0284C7?style=for-the-badge&logo=rust)](https://www.rust-lang.org)
+[![Axum Daemon](https://img.shields.io/badge/Rust%20Daemon-Axum%20127.0.0.1%3A4040-FE4A49?style=for-the-badge&logo=rust)](https://github.com/tokio-rs/axum)
 [![GraphRAG Neo4j](https://img.shields.io/badge/GraphRAG-Neo4j%20Cypher%20%2B%20Vector-0284C7?style=for-the-badge&logo=neo4j&logoColor=white)](https://neo4j.com)
 [![Cargo-Fuzz LibFuzzer](https://img.shields.io/badge/Cargo--Fuzz-LibFuzzer%20%2B%20ASan-E11D48?style=for-the-badge&logo=target)](https://github.com/rust-fuzz/cargo-fuzz)
 [![NIST Post-Quantum](https://img.shields.io/badge/NIST%20PQC-FIPS%20203%20%7C%20204%20%7C%20205-7C3AED?style=for-the-badge&logo=quantum)](https://csrc.nist.gov/projects/post-quantum-cryptography)
 [![Compliance Frameworks](https://img.shields.io/badge/Compliance-SOC2%20%7C%20ISO%2027001%20%7C%20NIST%20SSDF%20%7C%20PCI--DSS-0284C7?style=for-the-badge&logo=security)](https://csrc.nist.gov)
 [![Supply Chain SBOM](https://img.shields.io/badge/SBOM-OWASP%20CycloneDX%20v1.5%20%7C%20SPDX%20v2.3-059669?style=for-the-badge&logo=owasp)](https://cyclonedx.org)
 [![FAIR Risk Model](https://img.shields.io/badge/Risk%20Quantification-FAIR%20%7C%20ALE%20%7C%20ROSI-D97706?style=for-the-badge&logo=cashapp)](https://www.fairinstitute.org/)
-[![MCP Protocol](https://img.shields.io/badge/MCP-Model%20Context%20Protocol%20JSON--RPC%202.0-8B5CF6?style=for-the-badge&logo=openai)](https://modelcontextprotocol.io)
-[![Zero Trust Crypto](https://img.shields.io/badge/Zero%20Trust-Constant--Time%20%7C%20AES--GCM%20%7C%20SHA--256-10B981?style=for-the-badge&logo=lock)](https://csrc.nist.gov)
+[![MCP Protocol](https://img.shields.io/badge/MCP-Model%20Context%20Protocol%20SSE%20%2B%20JSON--RPC%202.0-8B5CF6?style=for-the-badge&logo=openai)](https://modelcontextprotocol.io)
 
 ---
 
-## 📋 Sumário Executivo & Visão Geral
+## 📋 Sumário Executivo & Visão Geral (v2.2)
 
 O **RustShield Quantum (NEXAVOR-QUANTUM-AUDIT)** é uma plataforma unificada de engenharia DevSecOps de missão crítica, governança regulatória (GRC), refatoração automatizada de código legado, análise relacional em grafo (GraphRAG) e preparação criptográfica pós-quântica (PQC).
 
-Projetada com uma arquitetura **Domain-Driven Design (DDD)** e implementada com um núcleo nativo de alta performance em **Rust 1.70+**, a plataforma combina:
-1. **Análise Estática Poliglota e Refatoração Determinística (AST + Google Gemini AI Engine)** com motor de envio atômico em lote via **GitHub Git Data API (`/server/githubGitService.ts`)** usando `@octokit/rest` para comitar simultaneamente múltiplos arquivos refatorados em um único commit atômico no Pull Request.
-2. **CodeReviewWorkbench & Isolamento Pericial de Riscos (`CodeReviewWorkbench.tsx`)**: Painel interativo com filtragem avançada por perfil de risco, permitindo isolar instantaneamente falhas de alta severidade em **Memory Safety** (corrupção de memória, UB, ponteiros brutos) e **Post-Quantum Cryptography (PQC)** (algoritmos vulneráveis ao Q-Day).
-3. **Knowledge Graph Ontology & GraphRAG Neo4j Engine (`schema.ts` + `GraphSyncService.ts`)**: Mapeamento formal de grafos de conhecimento com suporte a Cypher DDL/DML, restrições de unicidade (`CREATE CONSTRAINT`) e índices (`CREATE INDEX`) para nós `:CodeFile`, `:ASTFunction`, `:CryptoAlgorithm`, `:Vulnerability`, `:ComplianceRule` e `:SBOMPackage`.
-3. **Orquestrador RAG Híbrido (`HybridRAGService.ts`)**: Busca paralela combinando busca semântica em vetores (`pgvector`/`Qdrant`) e travessia relacional de grafos (`Neo4j Cypher`), com reranking ponderado e telemetria de latência em tempo real.
-4. **Visualizador Interativo GraphRAG com Framer Motion (`GraphRagVisualizer.tsx`)**: Animações de entrada *spring*, auras luminosas para vulnerabilidades e regras de compliance, inspeção de subgrafos de impacto multi-hop e **Sistema de Snapshots da Análise** (salvamento de estado de zoom, filtros e seleção no `localStorage` com restauração e exportação JSON em 1-clique).
-5. **Cockpit de Fuzzing Contínuo (`Cargo-Fuzz` / `LibFuzzer` + AddressSanitizer)** com análise pericial de corpora, mutadores e isolamento de falhas de memória.
-6. **Hub Criptográfico Pós-Quântico (NIST PQC)** com suporte aos padrões oficiais **FIPS 203 (ML-KEM)**, **FIPS 204 (ML-DSA)** e **FIPS 205 (SLH-DSA)**.
-7. **Governança GRC & Matriz de Conformidade Automatizada** para **SOC 2 Type II**, **ISO/IEC 27001:2022**, **NIST SP 800-218 (SSDF v1.1)** e **PCI-DSS v4.0**.
-8. **Quantificação Financeira de Riscos Ciber (Modelo FAIR)** calculando Perda Única (SLE), Frequência Anual (ARO), Perda Anual Esperada (ALE) e Retorno sobre Investimento (ROSI).
-9. **Supply Chain Security & Software Bill of Materials (SBOM)** com geração em 1-clique nos formatos **OWASP CycloneDX v1.5 JSON** e **ISO/IEC 5962 SPDX v2.3 JSON**.
-10. **Trilha Forense Imutável (Tamper-Proof Ledger)** baseada em encadeamento criptográfico SHA-256 e exportação em tempo real para **SIEM (ArcSight CEF / ElasticSearch NDJSON)**.
-11. **Servidor MCP (Model Context Protocol JSON-RPC 2.0)** para integração direta com IDEs de IA como **Cursor, VSCode e Windsurf**.
+Projetada com uma arquitetura **Domain-Driven Design (DDD)** e implementada com um núcleo nativo de alta performance em **Rust 1.70+**, a versão v2.2 incorpora:
+
+1. **Daemon IPC de Alta Performance em Rust Axum (`127.0.0.1:4040`)**: Servidor interno Axum/Tokio expondo endpoints de alta velocidade (`/api/ast/parse`, `/api/fuzz/verify`, `/api/crypto/constant-time`) integrados ao cliente TypeScript Gateway (`/server/rustDaemonClient.ts`) com controle de timeout de **3000ms** via `AbortController`.
+2. **Servidor MCP Completo (SSE / JSON-RPC 2.0)**: Protocolo Model Context Protocol em `/api/mcp` suportando conexões Server-Sent Events (SSE) e requisições JSON-RPC 2.0 com ferramentas como `analyze_ast`, `refactor_code`, `calculate_fair`, `query_impact_graph`, `scan_sbom` e `generate_constant_time_harness`.
+3. **Mecanismo de Draft PR Seguro (Human-in-the-Loop)**: Criação de Pull Requests no GitHub em modo **Draft** (`draft: true`) acompanhadas de relatórios formais de sanitização Cargo-Fuzz (AddressSanitizer / LSan) e lista de checagem obrigatória para aprovação humana.
+4. **Resiliência no HybridRAG com Circuit Breaker (Timeout de 1500ms)**: Proteção em `src/services/hybridRagService.ts` contra latência no Neo4j, alternando suavemente para busca vetorial pura (`Qdrant`/`pgvector`) e informando a flag `graphContextAvailable: false` ao motor Gemini AI.
+5. **Análise Estática Poliglota e Refatoração Determinística (AST + Gemini AI)** com motor de envio atômico em lote via **GitHub Git Data API (`/server/githubGitService.ts`)** usando `@octokit/rest`.
+6. **CodeReviewWorkbench & Isolamento Pericial de Riscos**: Painel interativo para isolamento de falhas de alta severidade em **Memory Safety** e **Post-Quantum Cryptography (PQC)**.
+7. **Visualizador Interativo GraphRAG com Framer Motion & Snapshots**: Animações *spring*, auras luminosas para vulnerabilidades e salvamento de estado de zoom/filtros no `localStorage` com exportação/importação JSON em 1-clique.
+8. **Hub Criptográfico Pós-Quântico (NIST PQC)** com suporte aos padrões oficiais **FIPS 203 (ML-KEM)**, **FIPS 204 (ML-DSA)** e **FIPS 205 (SLH-DSA)**.
+9. **Governança GRC & Quantificação FAIR**: Matriz de evidências para **SOC 2**, **ISO 27001**, **NIST SSDF** e **PCI-DSS**, além de valuation financeiro (SLE, ALE, ROSI).
+10. **Supply Chain Security & Trilha Forense SHA-256**: Exportação SBOM (**OWASP CycloneDX v1.5** / **SPDX v2.3**) e streaming para SIEM (**ArcSight CEF** / **ElasticSearch NDJSON**).
 
 ---
 
