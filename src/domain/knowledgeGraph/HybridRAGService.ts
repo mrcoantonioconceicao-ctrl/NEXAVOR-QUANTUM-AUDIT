@@ -16,6 +16,7 @@ import {
   FusedContextItem,
 } from './types.ts';
 import { HybridRAGFusionService } from './HybridRAGFusionService.ts';
+import { HybridRAGService as ResilientHybridRagService } from '../../services/hybridRagService.ts';
 
 export interface LatencyMetricRecord {
   id: string;
@@ -116,8 +117,8 @@ export class HybridRAGService {
     this.cacheMisses++;
     const startTime = performance.now();
 
-    // Execução da busca fusionada paralela
-    const result = await HybridRAGFusionService.executeHybridQuery(request);
+    // Execução da busca fusionada paralela com Circuit Breaker e Exponential Backoff
+    const result = await ResilientHybridRagService.executeHybridQuery(request);
 
     const endTime = performance.now();
     const measuredTotalMs = Math.round(endTime - startTime);

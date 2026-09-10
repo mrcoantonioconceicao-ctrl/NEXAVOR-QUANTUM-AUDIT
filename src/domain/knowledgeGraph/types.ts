@@ -107,6 +107,9 @@ export interface HybridRAGQueryResult {
   contextPrompt: string;
   graphContextAvailable?: boolean;
   circuitBreakerTriggered?: boolean;
+  circuitBreakerState?: 'CLOSED' | 'OPEN' | 'HALF_OPEN';
+  backoffAppliedMs?: number;
+  consecutiveFailures?: number;
   aiDiagnosticRationale?: string;
   metrics: {
     vectorRetrievalMs: number;
