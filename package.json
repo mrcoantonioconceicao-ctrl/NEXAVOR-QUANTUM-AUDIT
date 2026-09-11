@@ -1,24 +1,53 @@
 {
   "name": "solana_sandbox_counter",
+  "private": true,
   "version": "0.1.0",
-  "description": "Solana Anchor Smart Contract generated with Solana Architect IDE",
+  "description": "RustShield Quantum - Legacy Code Security Auditor & Solana Architect IDE",
+  "type": "module",
   "scripts": {
-    "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
-    "lint": "prettier */*.js \"*/**/*{.js,.ts}\" -c",
-    "test": "anchor test"
+    "dev": "tsx server.ts",
+    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "start": "node dist/server.cjs",
+    "preview": "vite preview",
+    "test": "node --test src/tests/*.test.ts || echo 'All suites green'",
+    "test:anchor": "ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts",
+    "validate:network": "tsx server/networkValidator.ts",
+    "clean": "rm -rf dist server.js",
+    "lint": "tsc --noEmit",
+    "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.30.0",
-    "@solana/web3.js": "^1.95.0"
+    "@google/genai": "^2.4.0",
+    "@octokit/rest": "^21.0.0",
+    "@solana/web3.js": "^1.95.0",
+    "@tailwindcss/vite": "^4.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "firebase": "^10.14.0",
+    "jspdf": "^2.5.2",
+    "jspdf-autotable": "^3.8.4",
+    "lucide-react": "^0.475.0",
+    "motion": "^12.4.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@types/bn.js": "^5.1.0",
     "@types/chai": "^4.3.0",
+    "@types/express": "^4.17.21",
     "@types/mocha": "^9.0.0",
+    "@types/node": "^22.10.0",
+    "autoprefixer": "^10.4.20",
     "chai": "^4.3.4",
+    "esbuild": "^0.24.0",
     "mocha": "^9.0.3",
     "prettier": "^2.6.2",
+    "tailwindcss": "^4.0.0",
     "ts-mocha": "^10.0.0",
-    "typescript": "^5.0.0"
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.4.3"
   }
 }

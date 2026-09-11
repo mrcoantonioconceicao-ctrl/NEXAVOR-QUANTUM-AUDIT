@@ -58,6 +58,36 @@ export default function App() {
       setBpmnSteps((prev) =>
         prev.map((s) => ({ ...s, status: 'COMPLETED', progressPercent: 100 }))
       );
+    } else {
+      // Auto-run initial audit for embedded Solana Anchor smart contract workspace on first open
+      handleStartAuditWithCustomCode(
+        'solana_sandbox_counter',
+        'programs/solana_sandbox_counter/src/lib.rs',
+        `use anchor_lang::prelude::*;
+
+declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+
+#[program]
+pub mod solana_sandbox_counter {
+    use super::*;
+
+    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
+        let counter = &mut ctx.accounts.counter;
+        counter.authority = ctx.accounts.authority.key();
+        counter.count = 0;
+        counter.bump = ctx.bumps.counter;
+        msg!("SolanaSandboxCounter inicializado com sucesso");
+        Ok(())
+    }
+
+    pub fn increment(ctx: Context<Increment>) -> Result<()> {
+        let counter = &mut ctx.accounts.counter;
+        counter.count = counter.count.checked_add(1).ok_or(error!(ErrorCode::CounterOverflow))?;
+        msg!("Contador incrementado. Novo valor: {}", counter.count);
+        Ok(())
+    }
+}`
+      );
     }
 
     // Background sync with Firestore

@@ -1,58 +1,101 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
-import { SolanaSandboxCounter } from "../target/types/solana_sandbox_counter";
+import { SolanaSandboxCounter, IDL } from "../target/types/solana_sandbox_counter.ts";
 
-describe("solana_sandbox_counter", () => {
-  // Configure the client to use the local devnet/cluster
-  const provider = anchor.AnchorProvider.env();
-  anchor.setProvider(provider);
+export type { SolanaSandboxCounter };
+export { IDL };
 
-  const program = anchor.workspace.SolanaSandboxCounter as Program<SolanaSandboxCounter>;
-  const authority = provider.wallet;
-
-  // 1. Derive PDA for UserCounter
-  const [counterPda, bump] = PublicKey.findProgramAddressSync(
-    [Buffer.from("counter"), authority.publicKey.toBuffer()],
-    program.programId
+/**
+ * Deriva deterministicamente o PDA (Program Derived Address) da conta UserCounter
+ * utilizando a seed "counter" e a chave pública da autoridade.
+ */
+export function deriveCounterPda(
+  authorityPublicKey: PublicKey,
+  programId: PublicKey = new PublicKey(IDL.address)
+): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("counter"), authorityPublicKey.toBuffer()],
+    programId
   );
+}
 
-  it("Initializes the PDA Counter Account", async () => {
-    console.log("Authority Pubkey:", authority.publicKey.toBase58());
-    console.log("Derived PDA Counter:", counterPda.toBase58());
+/**
+ * Interface do estado on-chain da conta de contador
+ */
+export interface UserCounterState {
+  authority: PublicKey;
+  count: anchor.BN;
+  bump: number;
+}
 
-    const tx = await program.methods
+/**
+ * SDK Cliente para interação com o Smart Contract SolanaSandboxCounter
+ */
+export class SolanaSandboxCounterClient {
+  public program: Program<SolanaSandboxCounter>;
+  public provider: anchor.AnchorProvider;
+
+  constructor(provider: anchor.AnchorProvider, programId?: PublicKey) {
+    this.provider = provider;
+    const targetIdl = programId ? { ...IDL, address: programId.toBase58() } : IDL;
+    this.program = new Program<SolanaSandboxCounter>(
+      targetIdl,
+      provider
+    );
+  }
+
+  /**
+   * Obtém o PDA para a autoridade conectada
+   */
+  public getCounterPda(authority?: PublicKey): [PublicKey, number] {
+    const auth = authority || this.provider.wallet.publicKey;
+    return deriveCounterPda(auth, new PublicKey(this.program.idl.address));
+  }
+
+  /**
+   * Inicializa uma nova conta de contador no Solana
+   */
+  public async initialize(): Promise<string> {
+    const authority = this.provider.wallet.publicKey;
+    const [counterPda] = this.getCounterPda(authority);
+
+    return await (this.program.methods as any)
       .initialize()
       .accounts({
         counter: counterPda,
-        authority: authority.publicKey,
+        authority,
         systemProgram: SystemProgram.programId,
       })
       .rpc();
+  }
 
-    console.log("Transaction Signature:", tx);
+  /**
+   * Incrementa o contador da autoridade
+   */
+  public async increment(): Promise<string> {
+    const authority = this.provider.wallet.publicKey;
+    const [counterPda] = this.getCounterPda(authority);
 
-    // Fetch account state from chain
-    const counterAccount = await program.account.userCounter.fetch(counterPda);
-    console.log("On-Chain Counter State:", {
-      authority: counterAccount.authority.toBase58(),
-      count: counterAccount.count.toNumber(),
-      bump: counterAccount.bump,
-    });
-  });
-
-  it("Increments the Counter", async () => {
-    const tx = await program.methods
+    return await (this.program.methods as any)
       .increment()
       .accounts({
         counter: counterPda,
-        authority: authority.publicKey,
+        authority,
       })
       .rpc();
+  }
 
-    console.log("Increment Tx Signature:", tx);
-
-    const counterAccount = await program.account.userCounter.fetch(counterPda);
-    console.log("Updated Count:", counterAccount.count.toNumber());
-  });
-});
+  /**
+   * Consulta o estado atual da conta na blockchain
+   */
+  public async fetchCounter(authority?: PublicKey): Promise<UserCounterState> {
+    const [counterPda] = this.getCounterPda(authority);
+    const account = await (this.program.account as any).userCounter.fetch(counterPda);
+    return {
+      authority: account.authority,
+      count: account.count,
+      bump: account.bump,
+    };
+  }
+}

@@ -11,12 +11,18 @@ pub mod solana_sandbox_counter {
         counter.authority = ctx.accounts.authority.key();
         counter.count = 0;
         counter.bump = ctx.bumps.counter;
+        msg!("SolanaSandboxCounter inicializado com sucesso para autoridade: {:?}", counter.authority);
         Ok(())
     }
 
     pub fn increment(ctx: Context<Increment>) -> Result<()> {
         let counter = &mut ctx.accounts.counter;
-        counter.count += 1;
+        // Prevenção estrita de Integer Overflow via checked_add
+        counter.count = counter
+            .count
+            .checked_add(1)
+            .ok_or(error!(ErrorCode::CounterOverflow))?;
+        msg!("Contador incrementado. Novo valor: {}", counter.count);
         Ok(())
     }
 }
@@ -53,4 +59,10 @@ pub struct UserCounter {
     pub authority: Pubkey,
     pub count: u64,
     pub bump: u8,
+}
+
+#[error_code]
+pub enum ErrorCode {
+    #[msg("Operação aritmética de incremento excedeu o limite máximo (Overflow).")]
+    CounterOverflow,
 }
