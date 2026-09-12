@@ -34,9 +34,14 @@
 - **Exportação Cypher**: Suporte a consultas em bancos de dados de grafos (Neo4j).
 - **MCP Server (Model Context Protocol)**: Router integrado (SSE + JSON-RPC 2.0) para conexão direta com assistentes de IA e IDEs (Cursor, VS Code, Claude Desktop).
 
-### 5. 🤖 Refatoração AST Automática & CI/CD Fuzzing
-- **Estúdio de Refatoração In-Place**: Sugestão e aplicação automática de patches seguros em Rust e Go.
-- **Integração com GitHub**: Criação automatizada de Pull Requests com correções de segurança aplicadas.
+### 5. 🤖 Refatoração AST Automática, Compilação `cargo check` & Automação GitHub (Octokit)
+- **Estúdio de Refatoração AST In-Place (`AstRefactorStudio`)**: Análise estrutural de nós AST vulneráveis em Rust/Go e aplicação de patches de segurança de pânico zero.
+- **Validação de Compilabilidade (`cargo check`)**: Etapa de verificação estática determinística que simula o compilador Rust (`cargo check --manifest-path Cargo.toml`), auditando o equilíbrio de sintaxe e assegurando a eliminação de chamadas `.unwrap()` antes de permitir qualquer alteração no repositório.
+- **Orquestração de Pull Requests via Octokit (`githubService.ts` & `GitHubPrAutomationModule`)**:
+  - Resolução automática da branch padrão (`main`/`master`) e criação atômica de nova branch isolada (`rustshield-legacy-refactor-[timestamp]`).
+  - Commit atômico do patch remediado em Base64 através da Git Data API do GitHub.
+  - Submissão automatizada do Pull Request em modo Draft contendo documentação Markdown formatada com histórico de mutação dos nós AST (*Antes vs Depois*), parecer técnico e certificação de qualidade (**BPMN 2.0**, *Clean Code* e *DDD*).
+- **Política Human-in-the-Loop**: Portal de dupla aprovação do operador e validação estrita do compilador antes de autorizar a submissão no GitHub.
 - **Webhooks & Cargo-Fuzz Alerts**: Recebimento de alertas de crash de fuzzer em tempo real via Server-Sent Events (SSE) e persistência em nuvem (Firebase Firestore).
 - **Exportação Padrão**: Download de relatórios executivos em PDF, artefatos SARIF v2.1.0 (OASIS Standard) e CycloneDX v1.5 SBOM.
 
