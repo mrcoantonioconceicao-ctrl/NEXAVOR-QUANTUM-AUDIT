@@ -19,7 +19,7 @@ concurrency:
 jobs:
   fuzz:
     name: LibFuzzer Stress & Memory Safety
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     strategy:
       matrix:
         target: [ ast_parser, refactor_engine, fuzz_structured_parser ]

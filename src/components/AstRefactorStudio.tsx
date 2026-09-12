@@ -29,6 +29,7 @@ import {
   AstViolationNode,
 } from '../domain/astRefactorEngine.ts';
 import { getStoredGitHubToken, setStoredGitHubToken } from '../services/tokenStorage.ts';
+import { GitHubPrAutomationModule } from './GitHubPrAutomationModule.tsx';
 
 interface AstRefactorStudioProps {
   report: SecurityAuditReport | null;
@@ -909,128 +910,17 @@ export const AstRefactorStudio: React.FC<AstRefactorStudioProps> = ({
             </p>
           </div>
 
-          {/* 1-Click Pull Request Section */}
-          <div className="p-5 rounded-lg bg-gradient-to-r from-zinc-900 via-purple-950/40 to-zinc-900 border border-purple-500/30 space-y-4">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <h4 className="text-sm font-bold font-mono text-white flex items-center gap-2">
-                  <GitPullRequest className="h-4 w-4 text-purple-400" />
-                  <span>Abrir Pull Request Oficial no GitHub (1-Click)</span>
-                </h4>
-                <p className="text-xs text-zinc-400">
-                  Gera a branch isolada <code className="text-purple-300">rustshield-legacy-refactor-[timestamp]</code>, realiza o commit do arquivo refatorado e abre o Pull Request com parecer técnico e diff.
-                </p>
-              </div>
-
-              <button
-                onClick={handleCreatePullRequest}
-                disabled={isOpeningPr}
-                className="px-5 py-2.5 rounded bg-purple-600 hover:bg-purple-500 text-white font-mono text-xs font-bold flex items-center gap-2 shadow-lg hover:shadow-purple-500/20 transition-all cursor-pointer disabled:opacity-60 shrink-0"
-              >
-                {isOpeningPr ? (
-                  <>
-                    <Cpu className="h-4 w-4 animate-spin text-purple-200" />
-                    <span>Criando Branch & PR no GitHub...</span>
-                  </>
-                ) : (
-                  <>
-                    <GitPullRequest className="h-4 w-4 text-purple-200" />
-                    <span>Abrir Pull Request no GitHub</span>
-                  </>
-                )}
-              </button>
-            </div>
-
-            {/* Personal Access Token & Target Repository Input */}
-            <div className="pt-3 border-t border-zinc-800/80 p-3.5 rounded bg-purple-950/20 border border-purple-500/30 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                <div className="flex items-center gap-2">
-                  <Key className="h-4 w-4 text-purple-400" />
-                  <span className="font-mono text-purple-200 text-xs font-bold uppercase tracking-wider">
-                    🔑 Token do GitHub (PAT) para liberar Pull Request:
-                  </span>
-                </div>
-                {githubToken ? (
-                  <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1 font-bold">
-                    <CheckCircle2 className="h-3 w-3" /> Token Ativo Salvo
-                  </span>
-                ) : (
-                  <span className="text-[10px] font-mono text-amber-400 font-bold">
-                    ⚠️ Insira seu token para autorizar no GitHub
-                  </span>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-mono uppercase text-zinc-400 block font-semibold">
-                    GitHub Personal Access Token (PAT):
-                  </label>
-                  <input
-                    type="password"
-                    value={githubToken}
-                    onChange={(e) => handleTokenChange(e.target.value)}
-                    placeholder="Cole aqui seu token: ghp_xxxxxxxxxxxxxxxxxxxx"
-                    className="w-full bg-zinc-950 border border-purple-500/50 focus:border-purple-400 rounded px-3 py-2 font-mono text-xs text-white outline-none shadow-inner"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-mono uppercase text-zinc-400 block font-semibold">
-                    Repositório Alvo do Pull Request:
-                  </label>
-                  <input
-                    type="text"
-                    value={customRepoUrl}
-                    onChange={(e) => setCustomRepoUrl(e.target.value)}
-                    placeholder="https://github.com/mrcoantonioconceicao-ctrl/pagamentos-inteligentes"
-                    className="w-full bg-zinc-950 border border-zinc-700 focus:border-purple-400 rounded px-3 py-2 font-mono text-xs text-white outline-none shadow-inner"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* PR Error Banner */}
-            {prError && (
-              <div className="p-4 rounded bg-red-950/50 border border-red-500/50 space-y-1">
-                <div className="flex items-start gap-2 text-xs font-mono font-bold text-red-300">
-                  <AlertTriangle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-red-200">{prError}</p>
-                    <p className="text-[11px] text-red-400 font-normal mt-1">
-                      Certifique-se de inserir um GitHub Personal Access Token (PAT) válido com permissão de escrita <code>repo</code> no campo acima para autorizar o Pull Request.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* PR Result Banner */}
-            {prResult && (
-              <div className="p-4 rounded bg-emerald-950/40 border border-emerald-500/40 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono font-bold text-emerald-300 flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                    <span>{prResult.message}</span>
-                  </span>
-                  <a
-                    href={prResult.prUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-xs font-bold flex items-center gap-1.5 transition-colors"
-                  >
-                    <span>Ver Pull Request no GitHub</span>
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
-                </div>
-                <div className="text-[11px] font-mono text-emerald-200/80 flex items-center gap-4">
-                  <span>Branch: <strong>{prResult.branch}</strong></span>
-                  <span>PR #{prResult.prNumber}</span>
-                  <span>Modo: GitHub REST API Official</span>
-                </div>
-              </div>
-            )}
-          </div>
+          {/* Dedicated GitHub PR Automation Module */}
+          <GitHubPrAutomationModule
+            filePath={selectedFilePath}
+            refactoredContent={refactorResult.refactoredContent}
+            originalContent={sourceCode}
+            astFixes={refactorResult.astFixesApplied}
+            technicalRationale={refactorResult.technicalRationale}
+            engineeringHoursSaved={refactorResult.engineeringHoursSaved}
+            initialRepoUrl={customRepoUrl}
+            onShowNotification={onShowNotification}
+          />
         </div>
       )}
     </div>
