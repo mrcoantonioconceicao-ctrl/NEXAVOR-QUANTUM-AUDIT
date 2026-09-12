@@ -14,6 +14,9 @@ export const ai = apiKey
     })
   : null;
 
+// Import deterministic verification engine for non-negotiable security rules
+import { RemediationVerificationEngine } from '../src/domain/remediationEngine.ts';
+
 export interface GeminiAuditRequest {
   repoName: string;
   files: Array<{ path: string; content: string }>;
@@ -998,35 +1001,45 @@ Retorne um objeto JSON estrito com o esquema:
       const rawText = response.text || '{}';
       const parsed = extractJson(rawText);
       if (parsed && parsed.refactoredContent) {
-        const isNoOp = parsed.refactoredContent.includes('[STATUS: NO_OP_REQUIRED]');
-        const status = isNoOp ? 'NO_OP_REQUIRED' : (parsed.auditMetrics?.status || 'APROVADO');
-        const cleanCodeAndDdd = parsed.auditMetrics?.cleanCodeAndDdd || 'Conforme';
-        const falsePositiveRisk = parsed.auditMetrics?.falsePositiveRisk || 'Baixo';
+        // Validação Determinística Não-Negociável do RustShield:
+        // A sugestão da IA NÃO é aceita cegamente. O código passa pelo filtro de verificações de compilabilidade e segurança.
+        const verification = RemediationVerificationEngine.verifyAndEnforceRemediation(
+          payload.originalContent,
+          parsed.refactoredContent,
+          targetLang
+        );
+
+        const verifiedContent = verification.finalCode;
+        const isNoOp = verifiedContent.includes('[STATUS: NO_OP_REQUIRED]');
+        const status = isNoOp ? 'NO_OP_REQUIRED' : (verification.isSecurityValidated ? 'APROVADO' : 'REPROVADO');
+        const cleanCodeAndDdd = verification.isCompilable && verification.isSecurityValidated ? 'Conforme' : 'Não Conforme';
+        const falsePositiveRisk = verification.remediationType === 'DETERMINISTIC_AST' ? 'Baixo (Determinístico)' : 'Baixo';
 
         const auditMetrics = {
-          status,
-          cleanCodeAndDdd,
-          falsePositiveRisk,
+          status: status as 'APROVADO' | 'REPROVADO' | 'NO_OP_REQUIRED',
+          cleanCodeAndDdd: cleanCodeAndDdd as 'Conforme' | 'Não Conforme',
+          falsePositiveRisk: falsePositiveRisk as 'Baixo' | 'Médio' | 'Alto',
         };
 
         const auditOutputBlock = `1. [METRICAS_AUDITORIA]
 - Status: ${status}
 - Limpeza e DDD: ${cleanCodeAndDdd}
+- Validação Determinística BPMN 2.0: ${verification.remediationType}
 - Risco de Falso Positivo: ${falsePositiveRisk}
 
 2. [CODIGO_DESTINO_COMPLETO]
-${parsed.refactoredContent}`;
+${verifiedContent}`;
 
         return {
           success: true,
-          source: 'ai-engine',
+          source: verification.remediationType === 'DETERMINISTIC_AST' ? 'fallback-heuristic-engine' : 'ai-engine',
           targetMode: normalizedMode,
           targetLanguage: targetLang,
-          refactoredContent: parsed.refactoredContent,
+          refactoredContent: verifiedContent,
           diffSummary: parsed.diffSummary || `Refatoração ${isInPlace ? 'In-Place' : 'Polyglot'} concluída para ${payload.filePath}.`,
           astFixesApplied: parsed.astFixesApplied || [],
           engineeringHoursSaved: parsed.engineeringHoursSaved || 4.0,
-          technicalRationale: parsed.technicalRationale || 'Refatoração concluída conforme restrições sintáticas e regulatórias.',
+          technicalRationale: `${parsed.technicalRationale || 'Refatoração auditada pelo RustShield Engine.'} (${verification.remediationSummary})`,
           architecturalHighlights: {
             cleanCode: parsed.architecturalHighlights?.cleanCode || 'Eliminação de exceções e padrões inseguros.',
             soaDdd: parsed.architecturalHighlights?.soaDdd || 'Modelagem DDD com isolamento de responsabilidades.',

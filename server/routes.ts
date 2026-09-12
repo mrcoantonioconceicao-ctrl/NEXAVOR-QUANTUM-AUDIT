@@ -1690,13 +1690,16 @@ ${technicalRationale || 'Refatoração concluída mantendo total compatibilidade
 ---
 *Orquestração executada via BPMN 2.0. Clean Code & DDD Compliance Verified.*`;
 
+    const prTitle = req.body.prTitle || `[DRAFT] [RustShield Quantum] Refatoração AST + IA: ${normalizedFilePath}`;
+    const finalPrBody = req.body.formattedDescription || prBody;
+
     const prResult = await executeResilientPullRequestCreation(
       owner,
       repo,
       targetBranch,
       branchName,
-      `[DRAFT] [RustShield Quantum] Refatoração AST + IA: ${normalizedFilePath}`,
-      prBody,
+      prTitle,
+      finalPrBody,
       headers
     );
 
