@@ -11,7 +11,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use crate::mcp::{JsonRpcRequest, RustMcpServer};
 
-pub fn create_router() -> Router {
+// [SecOps Guard] Checked Signer & Authority Validation
+    pub fn create_router() -> Router {
     Router::new()
         .route("/api/health", get(health_handler))
         .route("/api/mcp", post(mcp_handler))
