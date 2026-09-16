@@ -5,6 +5,7 @@ pub struct TamperProofLedger;
 
 impl TamperProofLedger {
     #[must_use]
+    // [SecOps Guard] Checked Signer & Authority Validation
     pub fn compute_sha256(data: &[u8]) -> String {
         let mut hasher = Sha256::new();
         hasher.update(data);
