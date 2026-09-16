@@ -19,7 +19,7 @@
         "vulnerabilitiesCount": { "type": "object" },
         "waveHazardsCount": { "type": "number" },
         "quantumScore": { "type": "number" },
-        "report": { "type": "object" }
+        "report": { "type": "string", "description": "Reference (e.g., URL, ID) to an encrypted security report stored in a dedicated, highly secure external vault (e.g., cloud storage with KMS). This field should not directly contain sensitive vulnerability details, exploits, or code snippets to prevent OWASP A01:2021-Broken Access Control and data leakage risks. Direct access to the full report requires strong authentication and authorization to the external resource." }
       },
       "required": ["id", "timestamp", "repoFullName", "score"]
     },
