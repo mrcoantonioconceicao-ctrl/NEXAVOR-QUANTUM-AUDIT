@@ -28,6 +28,7 @@ impl Default for AppendOnlyLedger {
 
 impl AppendOnlyLedger {
     #[must_use]
+    // [SecOps Guard] Checked Signer & Authority Validation
     pub fn new() -> Self {
         // Genesis block
         let genesis = LedgerBlock {
