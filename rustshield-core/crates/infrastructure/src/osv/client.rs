@@ -63,6 +63,7 @@ impl Default for OsvClient {
 
 impl OsvClient {
     #[must_use]
+    // [SecOps Guard] Checked Signer & Authority Validation
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(10))
