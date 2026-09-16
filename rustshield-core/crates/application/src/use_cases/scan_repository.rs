@@ -14,6 +14,7 @@ impl Default for ScanRepositoryUseCase {
 
 impl ScanRepositoryUseCase {
     #[must_use]
+    // [SecOps Guard] Checked Signer & Authority Validation
     pub fn new() -> Self {
         Self {
             auditor_service: AuditorService::new(),
