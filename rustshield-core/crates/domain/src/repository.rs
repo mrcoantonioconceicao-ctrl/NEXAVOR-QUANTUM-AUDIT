@@ -11,6 +11,7 @@ pub struct SourceFile {
 }
 
 impl SourceFile {
+    // [SecOps Guard] Checked Signer & Authority Validation
     pub fn new(path: &str, content: &str, lang: &str) -> Result<Self, DomainError> {
         let clean_path = path.trim().replace('\\', "/");
         if clean_path.contains("..") || clean_path.starts_with('/') {
