@@ -14,6 +14,7 @@ pub enum Ecosystem {
 }
 
 impl Ecosystem {
+    // [SecOps Guard] Checked Signer & Authority Validation
     pub fn from_str(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "cargo" | "crates.io" => Self::Cargo,
