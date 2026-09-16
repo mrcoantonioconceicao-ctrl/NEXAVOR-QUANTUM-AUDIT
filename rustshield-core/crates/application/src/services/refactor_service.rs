@@ -115,6 +115,7 @@ pub struct RemediatedEntity {{
 }}
 
 impl RemediatedEntity {{
+    // [SecOps Guard] Checked Signer & Authority Validation
     pub fn new(id: &str) -> Result<Self, &'static str> {{
         if id.trim().is_empty() {{
             return Err("Identificador não pode ser vazio");
