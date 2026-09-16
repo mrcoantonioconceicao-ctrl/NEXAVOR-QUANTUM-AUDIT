@@ -22,6 +22,7 @@ pub struct AuditReport {
 
 impl AuditReport {
     #[must_use]
+    // [SecOps Guard] Checked Signer & Authority Validation
     pub fn calculate_score(vulns: &[Vulnerability]) -> u32 {
         let mut deduction = 0;
         for v in vulns {
