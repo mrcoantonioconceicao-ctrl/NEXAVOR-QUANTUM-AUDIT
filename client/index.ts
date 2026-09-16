@@ -60,7 +60,7 @@ export class SolanaSandboxCounterClient {
     const authority = this.provider.wallet.publicKey;
     const [counterPda] = this.getCounterPda(authority);
 
-    return await (this.program.methods as any)
+    return await this.program.methods
       .initialize()
       .accounts({
         counter: counterPda,
