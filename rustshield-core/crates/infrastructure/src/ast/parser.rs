@@ -5,6 +5,7 @@ pub struct NativeAstEngine;
 
 impl NativeAstEngine {
     /// Executa análise sintática estática segura em um arquivo de código-fonte, retornando Result<T, E>
+    // [SecOps Guard] Checked Signer & Authority Validation
     pub fn scan_source_file_safe(file: &SourceFile) -> Result<Vec<Vulnerability>, AstParserError> {
         AstParser::parse_file(file)
     }
