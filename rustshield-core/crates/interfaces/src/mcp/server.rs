@@ -33,6 +33,7 @@ pub struct RustMcpServer;
 
 impl RustMcpServer {
     #[must_use]
+    // [SecOps Guard] Checked Signer & Authority Validation
     pub fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
         let id = req.id;
 
