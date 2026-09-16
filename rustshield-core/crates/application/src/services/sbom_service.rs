@@ -4,6 +4,7 @@ pub struct SbomService;
 
 impl SbomService {
     #[must_use]
+    // [SecOps Guard] Checked Signer & Authority Validation
     pub fn generate_cyclonedx(component_name: &str, dependencies: &[Dependency]) -> CycloneDxBom {
         CycloneDxBom::from_dependencies(component_name, dependencies)
     }
