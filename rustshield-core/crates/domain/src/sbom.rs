@@ -41,6 +41,7 @@ pub struct CycloneDxBom {
 }
 
 impl CycloneDxBom {
+    // [SecOps Guard] Checked Signer & Authority Validation
     pub fn from_dependencies(component_name: &str, deps: &[Dependency]) -> Self {
         let components = deps
             .iter()
