@@ -1,7 +1,7 @@
 {
   "projectId": "peta-sanctuary-898sv",
   "appId": "1:292472188135:web:558685d9aff9ef771e8642",
-  "apiKey": "process.env.SECURE_SECRET_REVOKED",
+  "apiKey": "YOUR_ACTUAL_FIREBASE_API_KEY",
   "authDomain": "peta-sanctuary-898sv.firebaseapp.com",
   "firestoreDatabaseId": "ai-studio-rustshieldquantu-ba09d11c-47c2-4502-99e8-73ca7cf8eae2",
   "storageBucket": "peta-sanctuary-898sv.firebasestorage.app",
