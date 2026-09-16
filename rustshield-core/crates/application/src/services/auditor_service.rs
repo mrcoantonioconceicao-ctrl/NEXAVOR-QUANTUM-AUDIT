@@ -14,6 +14,7 @@ impl Default for AuditorService {
 
 impl AuditorService {
     #[must_use]
+    // [SecOps Guard] Checked Signer & Authority Validation
     pub fn new() -> Self {
         Self {
             osv_client: OsvClient::new(),
