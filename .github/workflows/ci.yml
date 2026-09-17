@@ -19,34 +19,22 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js Runtime
-        uses: actions/setup-node@v4
+      - name: Setup Bun Runtime
+        uses: oven-sh/setup-bun@v1
         with:
-          node-version: 20
-          cache: 'npm'
-
-      - name: Cache Node Modules & Build Artifacts
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.npm
-            node_modules
-            dist
-          key: ${{ runner.os }}-node-v20-${{ hashFiles('**/package-lock.json', 'package.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-v20-
+          bun-version: latest
 
       - name: Install Dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile || bun install
 
       - name: Linter & TypeScript Strict Verification
-        run: npm run lint
+        run: bun run lint
 
       - name: Full-Stack Production Bundle Verification
-        run: npm run build
+        run: bun run build
 
       - name: Unit & System Integration Test Suite
-        run: npm test
+        run: bun test
 
   deploy-production:
     name: Restricted Production Deployment
@@ -58,22 +46,21 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js Runtime
-        uses: actions/setup-node@v4
+      - name: Setup Bun Runtime
+        uses: oven-sh/setup-bun@v1
         with:
-          node-version: 20
-          cache: 'npm'
+          bun-version: latest
 
       - name: Install Production Dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile || bun install
 
       - name: Build Production Distribution
-        run: npm run build
+        run: bun run build
 
       - name: Verify Health Check & Production Metrics
         run: |
           echo "=========================================================="
           echo "🚀 DEPLOY PRODUÇÃO APROVADO: 100% dos testes passaram."
           echo "Ambiente: Cloud Run / CI Standard"
-          echo "Core: Node.js + Express + Solana Anchor v0.30.0 + React 19"
+          echo "Core: Bun + Solana Anchor v0.30.0 + React 19"
           echo "=========================================================="
