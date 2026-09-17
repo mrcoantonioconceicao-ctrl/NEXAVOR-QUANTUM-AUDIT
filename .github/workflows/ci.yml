@@ -47,11 +47,10 @@ jobs:
       - name: Install Dependencies
         run: bun install --frozen-lockfile || bun install
 
-      - name: Fix Lock File v4 to v3 compatibility for SBF
+      - name: Fix Lock File & Build Anchor Program
         run: |
           rm -f Cargo.lock
           cargo generate-lockfile
-          # Downgrade version = 4 to version = 3 in Cargo.lock if present
           sed -i 's/^version = 4/version = 3/g' Cargo.lock || true
           anchor build --no-idl
 
