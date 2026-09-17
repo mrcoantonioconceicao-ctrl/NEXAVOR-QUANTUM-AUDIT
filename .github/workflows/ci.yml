@@ -14,10 +14,24 @@ jobs:
   validate-and-test:
     name: Validation & Integration Tests Gate
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.solana.com/v1.17.34/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+          solana --version
+
+      - name: Install Anchor CLI v0.30.0
+        run: |
+          cargo install --git https://github.com/coral-xyz/anchor --tag v0.30.0 anchor-cli --locked
+          anchor --version
 
       - name: Setup Bun Runtime
         uses: oven-sh/setup-bun@v1
@@ -26,6 +40,9 @@ jobs:
 
       - name: Install Dependencies
         run: bun install --frozen-lockfile || bun install
+
+      - name: Build Anchor Program & Generate IDL Types
+        run: anchor build
 
       - name: Linter & TypeScript Strict Verification
         run: bun run lint
