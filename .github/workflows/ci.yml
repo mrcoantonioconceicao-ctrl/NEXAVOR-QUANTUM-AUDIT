@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Rust Toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.75.0
 
       - name: Install Solana CLI v1.17.34
         run: |
@@ -33,7 +33,7 @@ jobs:
 
       - name: Install Anchor CLI v0.30.0
         run: |
-          cargo install --git https://github.com/coral-xyz/anchor --tag v0.30.0 anchor-cli --locked
+          cargo install --git https://github.com/coral-xyz/anchor --tag v0.30.0 anchor-cli --locked --force
           anchor --version
 
       - name: Setup Bun Runtime
