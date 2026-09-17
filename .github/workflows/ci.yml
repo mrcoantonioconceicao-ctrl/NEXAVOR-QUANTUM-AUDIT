@@ -24,9 +24,11 @@ jobs:
 
       - name: Install Solana CLI v1.17.34
         run: |
+          sudo apt-get update && sudo apt-get install -y bzip2
           curl -sL https://github.com/solana-labs/solana/releases/download/v1.17.34/solana-release-x86_64-unknown-linux-gnu.tar.bz2 -o solana-release.tar.bz2
-          tar jxf solana-release.tar.bz2
+          tar --bzip2 -xf solana-release.tar.bz2
           echo "$PWD/solana-release/bin" >> $GITHUB_PATH
+          export PATH="$PWD/solana-release/bin:$PATH"
           solana --version
 
       - name: Install Anchor CLI v0.30.0
