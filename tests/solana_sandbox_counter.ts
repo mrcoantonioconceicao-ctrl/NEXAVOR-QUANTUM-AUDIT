@@ -2,7 +2,7 @@ import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
 import { expect } from "chai";
-import { SolanaSandboxCounter, IDL } from "../target/types/solana_sandbox_counter.ts";
+import { SolanaSandboxCounter, IDL } from "../target/types/solana_sandbox_counter";
 
 describe("solana_sandbox_counter", () => {
   const provider = anchor.AnchorProvider.env();
