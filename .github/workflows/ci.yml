@@ -34,7 +34,7 @@ jobs:
         run: bun run build
 
       - name: Unit & System Integration Test Suite
-        run: bun test
+        run: bun run test:anchor
 
   deploy-production:
     name: Restricted Production Deployment
