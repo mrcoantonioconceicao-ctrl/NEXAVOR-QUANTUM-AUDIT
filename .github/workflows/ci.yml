@@ -20,8 +20,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Rust Toolchain
-        uses: dtolnay/rust-toolchain@latest
+        uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: stable
           components: rustfmt, clippy
 
       - name: Install Solana CLI v1.17.34
@@ -46,11 +47,8 @@ jobs:
       - name: Install Dependencies
         run: bun install --frozen-lockfile || bun install
 
-      - name: Fix Lock File & Build Anchor Program
-        run: |
-          rm -f Cargo.lock
-          cargo generate-lockfile || true
-          anchor build --no-idl
+      - name: Build Anchor Program & Generate IDL Types
+        run: anchor build --no-idl
 
       - name: Linter & TypeScript Strict Verification
         run: bun run lint
