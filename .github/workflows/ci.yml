@@ -47,9 +47,11 @@ jobs:
       - name: Install Dependencies
         run: bun install --frozen-lockfile || bun install
 
-      - name: Fix Lock File & Build Anchor Program
+      - name: Fix Lock File & Patch SBF/js-sys Dependencies
         run: |
           rm -f Cargo.lock
+          # Forçar compatibilidade de versão do solana-program para evitar colisão de feature do js-sys no SBF
+          cargo update -p solana-program --precise 1.17.34 || true
           cargo generate-lockfile
           sed -i 's/^version = 4/version = 3/g' Cargo.lock || true
           anchor build --no-idl
