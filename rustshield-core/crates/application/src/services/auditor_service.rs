@@ -59,8 +59,17 @@ impl AuditorService {
         let timestamp = chrono::Utc::now().to_rfc3339();
 
         let report_payload = format!(
-            "{}:{}:{}:{}",
-            report_id, repository.name, score, all_vulnerabilities.len()
+            "{}:{}:{}:{}:{}:{}:{}:{}:{}:{}",
+            report_id,
+            timestamp,
+            repository.name,
+            score,
+            all_vulnerabilities.len(),
+            dependencies.len(),
+            fair_risk.total_cost_of_ownership_estimated,
+            total_files_scanned,
+            total_lines_scanned,
+            execution_time_ms
         );
         let tamper_proof_hash = TamperProofLedger::compute_sha256(report_payload.as_bytes());
 
