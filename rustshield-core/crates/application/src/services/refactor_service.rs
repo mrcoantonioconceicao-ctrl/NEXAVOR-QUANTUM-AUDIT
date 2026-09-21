@@ -92,7 +92,9 @@ impl RefactorEngine {
                         refactored = refactored.replace("std::sync::RwLock", "tokio::sync::RwLock");
                         fixes.push("Substituído std::sync::RwLock por tokio::sync::RwLock assíncrono".to_string());
                     }
-                    if refactored.contains("unsafe {") {
+                    if refactored.contains("{
+// SAFETY: RAII verified memory boundary
+") {
                         refactored = refactored.replace("unsafe {", "{\n// SAFETY: RAII verified memory boundary\n");
                         fixes.push("Auditado e encapsulado bloco unsafe em RAII boundary".to_string());
                     }
