@@ -57,7 +57,7 @@ export const AuditDashboard: React.FC<AuditDashboardProps> = ({
 }) => {
   const [isBadgeModalOpen, setIsBadgeModalOpen] = useState(false);
   const [selectedFileForInspection, setSelectedFileForInspection] = useState<SourceFile>(
-    report.filesAudited[0] || { path: 'src/lib.rs', size: 0, content: '' }
+    report?.filesAudited?.[0] || { path: 'src/lib.rs', size: 0, content: '' }
   );
 
   // 1-Click Pull Request Remediation State
@@ -79,9 +79,10 @@ export const AuditDashboard: React.FC<AuditDashboardProps> = ({
     setPrResult(null);
     setActiveVulnForPr(targetVulnId || 'ALL');
 
+    const vulnsList = report?.vulnerabilities || [];
     const targetVulns = targetVulnId
-      ? report.vulnerabilities.filter((v) => v.id === targetVulnId)
-      : report.vulnerabilities;
+      ? vulnsList.filter((v) => v.id === targetVulnId)
+      : vulnsList;
 
     const patches = targetVulns.map((v) => {
       // Deduce packageName & targetVersion from title or vulnerability metadata
@@ -99,7 +100,7 @@ export const AuditDashboard: React.FC<AuditDashboardProps> = ({
     });
 
     // Also include any dependency vulnerabilities if available
-    if (report.dependencyAnalysis?.vulnerabilities) {
+    if (report?.dependencyAnalysis?.vulnerabilities) {
       report.dependencyAnalysis.vulnerabilities.forEach((dv) => {
         patches.push({
           manifestPath: dv.manifestPath,
@@ -112,7 +113,7 @@ export const AuditDashboard: React.FC<AuditDashboardProps> = ({
     }
 
     const result = await createGitHubPullRequest({
-      repoUrl: report.targetRepo?.url || `https://github.com/${report.targetRepo?.owner || 'owner'}/${report.targetRepo?.name || 'repo'}`,
+      repoUrl: report?.targetRepo?.url || `https://github.com/${report?.targetRepo?.owner || 'owner'}/${report?.targetRepo?.name || 'repo'}`,
       githubToken: tokenOverride !== undefined ? tokenOverride : githubTokenInput,
       patches: patches.length > 0 ? patches : [{
         manifestPath: 'Cargo.toml',
@@ -121,7 +122,7 @@ export const AuditDashboard: React.FC<AuditDashboardProps> = ({
       }],
       prTitle: targetVulnId
         ? `[RustShield Quantum] Remediação: ${targetVulns[0]?.title || 'Patch de Segurança'}`
-        : `[RustShield Quantum] Remediação Automática Completa (${report.vulnerabilities.length} vulnerabilidades)`,
+        : `[RustShield Quantum] Remediação Automática Completa (${vulnsList.length} vulnerabilidades)`,
     });
 
     setIsCreatingPr(false);
@@ -135,6 +136,7 @@ export const AuditDashboard: React.FC<AuditDashboardProps> = ({
 
   // Compare with baseline if history exists or generate demo baseline
   const comparison = useMemo(() => {
+    if (!report) return null;
     const history = getAuditHistory(report.targetRepo?.fullName).filter((h) => h.id !== report.id);
     const baseline = history.length > 0 ? history[0].report : generateSyntheticBaselineSession(report);
     return compareAuditReports(report, baseline);
@@ -153,28 +155,29 @@ export const AuditDashboard: React.FC<AuditDashboardProps> = ({
     }
   };
 
-  const criticals = report.vulnerabilities.filter((v) => v.severity === 'CRITICAL');
-  const highs = report.vulnerabilities.filter((v) => v.severity === 'HIGH');
-  const mediums = report.vulnerabilities.filter((v) => v.severity === 'MEDIUM');
+  const vulns = report?.vulnerabilities || [];
+  const criticals = vulns.filter((v) => v.severity === 'CRITICAL');
+  const highs = vulns.filter((v) => v.severity === 'HIGH');
+  const mediums = vulns.filter((v) => v.severity === 'MEDIUM');
 
   // Triagem clara baseada em impacto
   const blockers = useMemo(() => {
-    return report.vulnerabilities.filter(
+    return vulns.filter(
       (v) => v.severity === 'CRITICAL' || v.category === 'MEMORY_SAFETY'
     );
-  }, [report.vulnerabilities]);
+  }, [vulns]);
 
   const attention = useMemo(() => {
-    return report.vulnerabilities.filter(
+    return vulns.filter(
       (v) => (v.severity === 'HIGH' || v.severity === 'MEDIUM') && v.category !== 'MEMORY_SAFETY'
     );
-  }, [report.vulnerabilities]);
+  }, [vulns]);
 
   const optionals = useMemo(() => {
-    return report.vulnerabilities.filter(
+    return vulns.filter(
       (v) => v.severity === 'LOW' || v.severity === 'INFORMATIONAL'
     );
-  }, [report.vulnerabilities]);
+  }, [vulns]);
 
   const filteredVulnerabilities = useMemo(() => {
     switch (triageFilter) {
@@ -186,13 +189,13 @@ export const AuditDashboard: React.FC<AuditDashboardProps> = ({
         return optionals;
       case 'ALL':
       default:
-        return report.vulnerabilities;
+        return vulns;
     }
-  }, [triageFilter, blockers, attention, optionals, report.vulnerabilities]);
+  }, [triageFilter, blockers, attention, optionals, vulns]);
 
   // Status de Prontidão (Production Readiness) em linguagem natural e direta
   const readinessStatus = useMemo(() => {
-    const hasCriticalDeps = report.dependencyAnalysis?.vulnerabilities.some(
+    const hasCriticalDeps = (report?.dependencyAnalysis?.vulnerabilities || []).some(
       (dv) => dv.severity === 'CRITICAL' || dv.severity === 'HIGH'
     );
 
@@ -241,12 +244,13 @@ export const AuditDashboard: React.FC<AuditDashboardProps> = ({
       recommendation: 'Mantenha os gates do CI/CD ativos para validar novos commits e pull requests.',
       actionLabel: 'Exportar Relatório',
     };
-  }, [blockers.length, attention.length, report.dependencyAnalysis]);
+  }, [blockers.length, attention.length, report?.dependencyAnalysis]);
 
   // Filtro para a árvore de arquivos
   const filteredTreeFiles = useMemo(() => {
-    return report.filesAudited.filter((file) => {
-      const fileVulns = report.vulnerabilities.filter((v) => v.file === file.path);
+    const files = report?.filesAudited || [];
+    return files.filter((file) => {
+      const fileVulns = vulns.filter((v) => v.file === file.path);
       if (treeFileFilter === 'BLOCKERS') {
         return fileVulns.some((v) => v.severity === 'CRITICAL' || v.category === 'MEMORY_SAFETY');
       }
@@ -255,7 +259,7 @@ export const AuditDashboard: React.FC<AuditDashboardProps> = ({
       }
       return true;
     });
-  }, [report.filesAudited, report.vulnerabilities, treeFileFilter]);
+  }, [report?.filesAudited, vulns, treeFileFilter]);
 
   // Arquivos vulneráveis selecionados
   const selectedFileVulns = useMemo(() => {

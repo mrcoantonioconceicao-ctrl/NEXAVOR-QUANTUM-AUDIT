@@ -31,6 +31,135 @@ import { exportExecutivePdf } from './services/pdfExporter.ts';
 import { downloadSarifFile } from './services/sarifExporter.ts';
 import { saveAuditSession, getAuditHistory, syncHistoryFromFirebase } from './services/auditHistoryService.ts';
 
+const DEFAULT_SANDBOX_REPORT: SecurityAuditReport = {
+  id: 'solana_sandbox_counter_initial',
+  timestamp: new Date().toISOString(),
+  targetRepo: {
+    owner: 'solana-labs',
+    name: 'solana_sandbox_counter',
+    fullName: 'solana-labs/solana_sandbox_counter',
+    description: 'Solana Anchor Smart Contract Sandbox Workspace',
+    stars: 142,
+    forks: 38,
+    openIssues: 0,
+    defaultBranch: 'main',
+    language: 'Rust',
+    url: 'https://github.com/solana-labs/solana_sandbox_counter',
+    fileCount: 1,
+    totalTreeFiles: 1,
+  },
+  filesAudited: [
+    {
+      path: 'programs/solana_sandbox_counter/src/lib.rs',
+      size: 920,
+      content: `use anchor_lang::prelude::*;\n\ndeclare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");\n\n#[program]\npub mod solana_sandbox_counter {\n    use super::*;\n    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {\n        let counter = &mut ctx.accounts.counter;\n        counter.authority = ctx.accounts.authority.key();\n        counter.count = 0;\n        Ok(())\n    }\n}`,
+    },
+  ],
+  overallSecurityScore: 92,
+  editionDetected: '2021',
+  detectedLanguages: ['Rust'],
+  primaryLanguage: 'Rust',
+  totalUnsafeBlocks: 0,
+  totalLinesAudited: 45,
+  vulnerabilities: [
+    {
+      id: 'VULN-SOL-001',
+      title: 'Controle de Acesso em Instruções Anchor',
+      severity: 'MEDIUM',
+      category: 'BROKEN_ACCESS_AUTH',
+      cwe: 'CWE-285',
+      cvssScore: 5.3,
+      file: 'programs/solana_sandbox_counter/src/lib.rs',
+      line: 12,
+      description: 'Autoridade atribuída sem restrição explícita has_one na conta do programa.',
+      unsafeRiskDetail: 'Mutações de autoridade sem assinatura verificada.',
+      waveShockwaveRadius: 'CRATE_BOUNDARY',
+      originalSnippet: 'counter.authority = ctx.accounts.authority.key();',
+      remediatedSnippet: '#[account(has_one = authority)]\npub counter: Account<\'info, CounterState>,',
+      suggestion: 'Adicionar a trava #[account(has_one = authority)] na struct de contexto.',
+      miriVerificationStatus: 'COMPLIANT',
+    },
+  ],
+  astMetrics: {
+    totalLines: 45,
+    codeLines: 35,
+    commentLines: 5,
+    blankLines: 5,
+    cyclomaticComplexity: {
+      average: 2.1,
+      max: 4,
+      highComplexityPoints: 0,
+      riskLevel: 'LOW',
+      fileBreakdown: [
+        {
+          file: 'programs/solana_sandbox_counter/src/lib.rs',
+          complexity: 2.1,
+          functionsCount: 2,
+          maxFunctionComplexity: 3,
+        },
+      ],
+    },
+    memorySafety: {
+      unsafeBlocksCount: 0,
+      rawPointerDerefs: 0,
+      unboundedSlicingOrAlloc: 0,
+      transmuteCount: 0,
+      memoryLeakRiskCount: 0,
+      memorySafetyIndex: 100,
+      memorySafetyPosture: 'OPTIMAL_MEMORY_SAFETY',
+    },
+  },
+  dependencyAnalysis: {
+    manifestsScanned: ['Cargo.toml'],
+    totalDependenciesCount: 5,
+    vulnerableCount: 0,
+    rustsecCount: 0,
+    outdatedCount: 1,
+    vulnerabilities: [],
+    outdated: [
+      {
+        manifestPath: 'Cargo.toml',
+        ecosystem: 'Cargo/Rust',
+        packageName: 'anchor-lang',
+        currentVersion: '0.28.0',
+        latestVersion: '0.29.0',
+        isMajorBehind: false,
+        status: 'OUTDATED',
+        remediationCommand: 'cargo update -p anchor-lang',
+      },
+    ],
+  },
+  waveHazards: [],
+  quantumMetrics: {
+    quantumReadinessScore: 95,
+    shorAlgorithmVulnerability: 'SAFE',
+    groverResistanceBits: 256,
+    detectedLegacyPrimitives: [],
+    recommendedPqcReplacements: ['ML-KEM-1024', 'Ed25519'],
+    constantTimeCompliance: true,
+    entropySourceAudit: 'Solana Sysvar Slot Entropy / OS CSPRNG',
+  },
+  executiveSummary: 'Relatório executivo da auditoria pericial do workspace Solana Anchor.',
+  architectureVerdict: {
+    dddCompliance: '95% (Bounded Context Isolado)',
+    soaResilience: 'Excelente',
+    waveTheoryZeroDayPosture: 'Sem Interferência Construtiva Crítica',
+    iso27001Status: 'COMPLIANT',
+    soc2Status: 'PASS',
+    nistSp800Status: 'ALIGNED',
+    rustSecAdvisories: 0,
+  },
+  remediationRoadmap: [
+    {
+      phase: 'Fase 1: Remediação Urgente',
+      priority: 1,
+      actions: ['Atualizar restrição #[account(has_one = authority)] no contrato Anchor.'],
+      estimatedEffort: '0.5 Horas',
+    },
+  ],
+  securityTests: [],
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
@@ -533,17 +662,14 @@ pub mod solana_sandbox_counter {
               showNotification={showNotification}
             />
           ) : (
-            <div className="max-w-4xl mx-auto p-12 text-center space-y-4">
-              <div className="inline-flex p-3 rounded-full bg-zinc-900 border border-zinc-800 text-emerald-400">
-                <span className="h-4 w-4 rounded-full bg-emerald-500 animate-pulse" />
-              </div>
-              <h3 className="text-lg font-mono font-bold text-white uppercase tracking-wider">
-                Pronto para Auditoria Pericial Real
-              </h3>
-              <p className="text-xs text-zinc-400 font-sans max-w-lg mx-auto leading-relaxed">
-                Insira a URL de um repositório do GitHub (público ou privado) ou cole o código fonte no Editor Manual acima para iniciar a varredura pericial ao vivo via inteligência artificial (Gemini API).
-              </p>
-            </div>
+            <AuditDashboard
+              report={report || DEFAULT_SANDBOX_REPORT}
+              onNavigateToTab={(t) => setActiveTab(t)}
+              onSelectVulnerabilityForReview={(id) => {
+                setSelectedVulnIdForReview(id);
+                setActiveTab('review');
+              }}
+            />
           )}
         </main>
 
