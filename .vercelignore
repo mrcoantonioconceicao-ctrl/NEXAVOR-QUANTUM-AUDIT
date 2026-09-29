@@ -1,0 +1,17 @@
+# Vercel Ignore Rules for RustShield Quantum
+# Garante que a Vercel ignore binários Rust e crates do Anchor, focando na Web App Vite/React
+
+target/
+programs/
+.anchor/
+.cargo/
+*.rs
+Cargo.lock
+Cargo.toml
+tests/
+
+# Cache e logs locais
+.env.local
+.DS_Store
+node_modules/
+.vite/
