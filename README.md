@@ -4,10 +4,11 @@
 [![Anchor Framework](https://img.shields.io/badge/Anchor-v0.30.0-emerald.svg)](https://www.anchor-lang.com/)
 [![Solana](https://img.shields.io/badge/Solana-Mainnet--Beta%20%7C%20Devnet-14F195.svg?logo=solana)](https://solana.com)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8.3-3178C6.svg?logo=typescript)](https://www.typescriptlang.org/)
+[![Vercel Serverless](https://img.shields.io/badge/Vercel-Serverless%20Ready-black.svg?logo=vercel)](https://vercel.com)
 [![Build Status](https://img.shields.io/badge/Build-100%25%20Verified-brightgreen.svg)]()
 [![Security Audit](https://img.shields.io/badge/Audit%20Score-100%2F100-success.svg)]()
 
-**RustShield Quantum** é um ecossistema unificado de auditoria de segurança pericial, análise estática de código AST, avaliação de criptografia pós-quântica (NIST PQC) e plataforma de contratos inteligentes em **Solana Anchor**.
+**RustShield Quantum** é um ecossistema unificado de auditoria de segurança pericial, análise estática determinística de código AST, avaliação de criptografia pós-quântica (NIST PQC) e plataforma de contratos inteligentes em **Solana Anchor** otimizada para ambientes Serverless (Vercel).
 
 ---
 
@@ -20,30 +21,33 @@
 - **Segurança de Memória Hardened**: Prevenção rigorosa contra *Integer Overflow* via `checked_add` e erros customizados (`ErrorCode::CounterOverflow`).
 - **Testes de Integração**: Suíte de testes com derivação determinística de PDA (`b"counter"`, `authority`) e asserções completas em `tests/`.
 
-### 2. 🛡️ Motor de Auditoria Pericial AST & Estática
-- **Análise Poliglota**: Suporte pericial a Rust (Solana/Anchor/Wasm), Go, TypeScript e linguagens corporativas.
-- **Detecção de Riscos de Memória**: Mapeamento de blocos `unsafe`, desreferenciação de ponteiros crus, `transmute`, ausência de verificação de limites e pânicos não tratados (`.unwrap()` / `.expect()`).
+### 2. 🛡️ Motor Determinístico de Auditoria Pericial AST & Solana/Anchor (`deterministicAuditEngine.ts`)
+- **Invariantes em Smart Contracts Solana/Anchor**:
+  - *Signer Verification & Privileges*: Inspeciona estruturas `AccountInfo<'info>` vs `Signer<'info>` e restrições `#[account(signer)]` para barrar escalação de privilégios.
+  - *CPI Program ID Invariance*: Identifica chamadas cruzadas `invoke` / `invoke_signed` sem validação do `program_id` alvo (prevenção contra *CPI Spoofing*).
+  - *Derivação de PDAs e Canonical Bumps*: Detecta chamadas a `find_program_address` sem validação de `bump` canônico.
+  - *Aritmética Financeira Segura*: Mapeia manipulação de saldos sem `checked_add` / `checked_sub`.
+- **Métricas Matemáticas de Código**: Cálculo de **Entropia Estrutural de Shannon** e coeficientes objetivas de densidade e risco sintático.
+- **Detecção Poliglota & Riscos de Memória**: Mapeamento de blocos `unsafe`, desreferenciação de ponteiros crus, `transmute`, ausência de verificação de limites e pânicos não tratados (`.unwrap()` / `.expect()`).
 - **CVSS v3.1 / v4.0 & Risco FAIR**: Cálculo de pontuação ponderada de risco combinando severidades de vulnerabilidade, complexidade ciclomática e vulnerabilidades da cadeia de suprimentos (Supply Chain).
 
-### 3. ⚛️ Criptografia Pós-Quântica (NIST PQC) & Teoria das Ondas
+### 3. ⚡ Arquitetura Otimizada para Vercel Serverless & Fallback Gracioso
+- **Ambiente Serverless & Efêmero**: 100% compatível com Vercel Edge / Serverless Functions sem dependência de *daemons* ou threads nativas em memória.
+- **Autonomia em Indisponibilidade (HTTP 503 / 429)**: Mecanismo de fallback gracioso local que entrega auditorias completas de forma autônoma caso APIs externas de LLM ou Advisories sofram *rate limit*.
+- **Injeção Dinâmica de Credenciais do Cliente**: O Personal Access Token (PAT) do GitHub é gerenciado dinamicamente no `localStorage` e injetado via cabeçalhos HTTP `Authorization: Bearer <token>`, eliminando dependências de variáveis estáticas de ambiente.
+
+### 4. 🔒 Governança, LGPD e Relatórios Executivos C-Level
+- **Anonimização Telemétrica LGPD/GDPR**: Sanitização rigorosa de identificadores de usuário e repositório utilizando hashes criptográficos **HMAC-SHA256**.
+- **Selos Executivos Vetoriais em SVG**: Geração dinâmica de badges visuais (`generateExecutiveSecuritySvgBadge`) para inclusão em relatórios executivos C-Level e documentação do repositório.
+
+### 5. ⚛️ Criptografia Pós-Quântica (NIST PQC) & Teoria das Ondas
 - **Avaliação Quantum-Ready**: Mapeamento de suscetibilidade a algoritmos quânticos (Shor e Grover) para RSA, ECC, Ed25519 e transição recomendada para algoritmos aprovados pelo NIST (ML-KEM / Kyber, ML-DSA / Dilithium).
 - **Análise Espectral de Ondas de Risco**: Identificação de vetores de interferência de ondas para prevenção preditiva de explorações 0-Day.
 
-### 4. 🧬 GraphRAG, Knowledge Graph & MCP Protocol
-- **RAG Híbrido**: Fusão de Busca Vetorial com Grafo de Impacto de Dependências de Código (GraphRAG).
-- **Exportação Cypher**: Suporte a consultas em bancos de dados de grafos (Neo4j).
-- **MCP Server (Model Context Protocol)**: Router integrado (SSE + JSON-RPC 2.0) para conexão direta com assistentes de IA e IDEs (Cursor, VS Code, Claude Desktop).
-
-### 5. 🤖 Refatoração AST Automática, Compilação `cargo check` & Automação GitHub (Octokit)
+### 6. 🤖 Refatoração AST Automática & Automação GitHub (Octokit)
 - **Estúdio de Refatoração AST In-Place (`AstRefactorStudio`)**: Análise estrutural de nós AST vulneráveis em Rust/Go e aplicação de patches de segurança de pânico zero.
-- **Validação de Compilabilidade (`cargo check`)**: Etapa de verificação estática determinística que simula o compilador Rust (`cargo check --manifest-path Cargo.toml`), auditando o equilíbrio de sintaxe e assegurando a eliminação de chamadas `.unwrap()` antes de permitir qualquer alteração no repositório.
-- **Orquestração de Pull Requests via Octokit (`githubService.ts` & `GitHubPrAutomationModule`)**:
-  - Resolução automática da branch padrão (`main`/`master`) e criação atômica de nova branch isolada (`rustshield-legacy-refactor-[timestamp]`).
-  - Commit atômico do patch remediado em Base64 através da Git Data API do GitHub.
-  - Submissão automatizada do Pull Request em modo Draft contendo documentação Markdown formatada com histórico de mutação dos nós AST (*Antes vs Depois*), parecer técnico e certificação de qualidade (**BPMN 2.0**, *Clean Code* e *DDD*).
-- **Política Human-in-the-Loop**: Portal de dupla aprovação do operador e validação estrita do compilador antes de autorizar a submissão no GitHub.
-- **Webhooks & Cargo-Fuzz Alerts**: Recebimento de alertas de crash de fuzzer em tempo real via Server-Sent Events (SSE) e persistência em nuvem (Firebase Firestore).
-- **Exportação Padrão**: Download de relatórios executivos em PDF, artefatos SARIF v2.1.0 (OASIS Standard) e CycloneDX v1.5 SBOM.
+- **Formatação de URL (`formatRepoPath`)**: Limpeza automatizada de URLs e caminhos do GitHub para o padrão estrito `proprietario/repositorio`.
+- **Orquestração de Pull Requests via Octokit**: Commit atômico do patch remediado e submissão automatizada de Pull Request com relatório Markdown detalhado (*Antes vs Depois*) e validação human-in-the-loop.
 
 ---
 
