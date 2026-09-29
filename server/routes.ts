@@ -1351,8 +1351,28 @@ export async function handleCreateGitHubPullRequest(req: Request, res: Response)
     }
 
     for (const patch of patches) {
-      const { manifestPath, packageName, targetVersion } = patch as CreatePrPatchItem;
-      const normalizedPath = manifestPath.trim().replace(/^\/+/, '').replace(/^\.\//, '');
+      if (!patch) continue;
+      const rawPath = patch.manifestPath || patch.filePath || patch.path || '';
+      if (!rawPath || typeof rawPath !== 'string') continue;
+
+      const normalizedPath = rawPath.trim().replace(/^\/+/, '').replace(/^\.\//, '');
+
+      // Se o patch já incluir o código completo (patchedCode ou content)
+      if (typeof patch.patchedCode === 'string' || typeof patch.content === 'string') {
+        const fullContent = patch.patchedCode ?? patch.content ?? '';
+        const existingIdx = filesToCommit.findIndex((f) => f.path === normalizedPath);
+        if (existingIdx >= 0) {
+          filesToCommit[existingIdx].content = fullContent;
+        } else {
+          filesToCommit.push({ path: normalizedPath, content: fullContent });
+        }
+        if (!updatedFiles.includes(normalizedPath)) updatedFiles.push(normalizedPath);
+        continue;
+      }
+
+      const { packageName, targetVersion } = patch as CreatePrPatchItem;
+      if (!packageName || !targetVersion) continue;
+
       const encodedPathForUrl = normalizedPath.split('/').map(encodeURIComponent).join('/');
       const fileUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${encodedPathForUrl}?ref=${targetBranch}`;
       
@@ -1364,7 +1384,7 @@ export async function handleCreateGitHubPullRequest(req: Request, res: Response)
 
       // Update version string idiomatically based on manifest type
       let patchedContent = currentContent;
-      if (manifestPath.endsWith('Cargo.toml')) {
+      if (rawPath.endsWith('Cargo.toml')) {
         const regex1 = new RegExp(`(${packageName}\\s*=\\s*")([^"]+)(")`, 'g');
         const regex2 = new RegExp(`(${packageName}\\s*=\\s*\\{\\s*version\\s*=\\s*")([^"]+)(")`, 'g');
         if (regex1.test(patchedContent)) {
@@ -1374,19 +1394,19 @@ export async function handleCreateGitHubPullRequest(req: Request, res: Response)
         } else {
           patchedContent += `\n# Safe remediation added by RustShield Quantum\n${packageName} = "${targetVersion}"\n`;
         }
-      } else if (manifestPath.endsWith('package.json')) {
+      } else if (rawPath.endsWith('package.json')) {
         const regexJson = new RegExp(`("${packageName}"\\s*:\\s*")([^"]+)(")`, 'g');
         if (regexJson.test(patchedContent)) {
           patchedContent = patchedContent.replace(regexJson, `$1^${targetVersion.replace(/^[\^~]/, '')}$3`);
         }
-      } else if (manifestPath.endsWith('requirements.txt')) {
+      } else if (rawPath.endsWith('requirements.txt')) {
         const regexPy = new RegExp(`^(${packageName}\\s*==\\s*)(.+)`, 'gm');
         if (regexPy.test(patchedContent)) {
           patchedContent = patchedContent.replace(regexPy, `$1${targetVersion}`);
         } else {
           patchedContent += `\n${packageName}==${targetVersion}\n`;
         }
-      } else if (manifestPath.endsWith('go.mod')) {
+      } else if (rawPath.endsWith('go.mod')) {
         const regexGo = new RegExp(`(${packageName}\\s+v)(.+)`, 'g');
         if (regexGo.test(patchedContent)) {
           patchedContent = patchedContent.replace(regexGo, `$1${targetVersion.replace(/^v/, '')}`);
@@ -1432,8 +1452,8 @@ export async function handleCreateGitHubPullRequest(req: Request, res: Response)
 ### 📦 Manifestos Remediados:
 ${patches
   .map(
-    (p: CreatePrPatchItem) =>
-      `- **${p.packageName}** -> Versão Segura \`${p.targetVersion}\` no manifesto \`${p.manifestPath}\``
+    (p: any) =>
+      `- **${p.packageName || p.filePath || 'Arquivo Remediado'}** -> Versão Segura \`${p.targetVersion || '1.0.0'}\` no manifesto \`${p.manifestPath || p.filePath || 'Relatório'}\``
   )
   .join('\n')}
 
@@ -1466,7 +1486,7 @@ ${patches
       prUrl: prResult.prUrl,
       prNumber: prResult.prNumber,
       branch: branchName,
-      patchedFiles: updatedFiles.length > 0 ? updatedFiles : patches.map((p: CreatePrPatchItem) => p.manifestPath),
+      patchedFiles: updatedFiles.length > 0 ? updatedFiles : patches.map((p: any) => p.manifestPath || p.filePath || p.path || 'Arquivo Remediado'),
       message: prResult.prNumber
         ? `Pull Request #${prResult.prNumber} criado com sucesso em ${owner}/${repo}!`
         : `A branch '${branchName}' foi criada e os arquivos foram atualizados com sucesso no GitHub!`,
@@ -1475,7 +1495,8 @@ ${patches
     console.error('Error in handleCreateGitHubPullRequest:', err);
     return res.status(500).json({
       error: 'Falha interna ao criar Pull Request no GitHub.',
-      details: err?.message,
+      details: err?.message || String(err),
+      stack: err?.stack,
     });
   }
 }

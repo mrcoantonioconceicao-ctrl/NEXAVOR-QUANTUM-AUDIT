@@ -81,7 +81,7 @@ export async function pushMultipleFilesToBranch(
     const treeItems = await Promise.all(
       filesToCommit.map(async (file) => {
         // Normaliza o caminho (remove barras no início ou ./)
-        const normalizedPath = file.path.trim().replace(/^\/+/, '').replace(/^\.\//, '');
+        const normalizedPath = (file?.path || 'file.txt').toString().trim().replace(/^\/+/, '').replace(/^\.\//, '');
 
         const { data: blobData } = await octokit.git.createBlob({
           owner,
