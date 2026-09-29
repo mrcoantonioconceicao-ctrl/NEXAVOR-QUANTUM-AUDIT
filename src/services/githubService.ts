@@ -67,20 +67,27 @@ export interface FetchRepositoryOptions {
 }
 
 /**
+ * Utilitário para limpar e formatar a URL ou caminho do repositório do GitHub.
+ * Garante o formato estrito: "proprietario/repositorio"
+ */
+export function formatRepoPath(inputUrl: string): string {
+  if (!inputUrl) return '';
+  let clean = inputUrl.trim();
+  // Remove sufixos .git, protocolos, www e domínios do GitHub
+  clean = clean.replace(/\.git$/i, '');
+  clean = clean.replace(/^(https?:\/\/)?(www\.)?github\.com\//i, '');
+  // Remove barras extras no início ou no fim
+  clean = clean.replace(/^\/+|\/+$/g, '');
+  return clean;
+}
+
+/**
  * Extrai owner e repo a partir de uma URL do GitHub ou string formato owner/repo
  */
 export function parseGitHubRepoUrl(repoUrl: string): { owner: string; repo: string } {
-  const clean = repoUrl.trim().replace(/\.git$/, '');
-  
-  if (clean.includes('github.com/')) {
-    const parts = clean.split('github.com/')[1].split('/');
-    if (parts.length >= 2) {
-      return { owner: parts[0], repo: parts[1] };
-    }
-  }
-
+  const clean = formatRepoPath(repoUrl);
   const parts = clean.split('/');
-  if (parts.length === 2) {
+  if (parts.length >= 2) {
     return { owner: parts[0], repo: parts[1] };
   }
 
