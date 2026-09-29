@@ -12,9 +12,11 @@ import {
   GitPullRequest,
   FolderGit2,
   Sparkles,
+  Zap,
 } from 'lucide-react';
 import { BENCHMARK_CASES } from '../domain/benchmarks.ts';
 import { getStoredGitHubToken, setStoredGitHubToken } from '../services/tokenStorage.ts';
+import { LinkedReposService } from '../services/linkedReposService.ts';
 
 interface AuditInputHeroProps {
   onStartAuditWithUrl: (
@@ -242,6 +244,24 @@ export const AuditInputHero: React.FC<AuditInputHeroProps> = ({
   const [customRepoName, setCustomRepoName] = useState(LANGUAGE_TEMPLATES.Rust.repoName);
   const [customFileName, setCustomFileName] = useState(LANGUAGE_TEMPLATES.Rust.fileName);
   const [customCode, setCustomCode] = useState(LANGUAGE_TEMPLATES.Rust.code);
+  const [isLinkingProfile, setIsLinkingProfile] = useState<boolean>(false);
+
+  const handleDirectLinkToProfile = async () => {
+    if (!githubUrl.trim()) return;
+    setIsLinkingProfile(true);
+    try {
+      const linked = await LinkedReposService.linkRepository({
+        repoUrl: githubUrl.trim(),
+        targetBranch: 'main',
+        autoReauditOnPush: true,
+      });
+      alert(`Repositório '${linked.repoFullName}' vinculado com sucesso ao perfil de auditoria! Re-auditoria automática ativada na branch 'main'.`);
+    } catch (err: any) {
+      alert(`Erro ao vincular repositório: ${err?.message}`);
+    } finally {
+      setIsLinkingProfile(false);
+    }
+  };
 
   // Auto-detect Pull Request URL
   useEffect(() => {
@@ -575,18 +595,31 @@ export const AuditInputHero: React.FC<AuditInputHeroProps> = ({
               <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-[11px] font-mono">
                 <div>
                   {parsedRepoPreview ? (
-                    <span className="text-emerald-400 flex items-center gap-1.5">
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      Alvo: <strong>{parsedRepoPreview.owner}</strong> / <strong>{parsedRepoPreview.repo}</strong>
-                      {parsedRepoPreview.pullNum && (
-                        <span className="ml-1 px-1.5 py-0.2 rounded bg-emerald-950 border border-emerald-500/40 text-[10px] font-bold">
-                          PR #{parsedRepoPreview.pullNum}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-emerald-400 flex items-center gap-1.5">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Alvo: <strong>{parsedRepoPreview.owner}</strong> / <strong>{parsedRepoPreview.repo}</strong>
+                        {parsedRepoPreview.pullNum && (
+                          <span className="ml-1 px-1.5 py-0.2 rounded bg-emerald-950 border border-emerald-500/40 text-[10px] font-bold">
+                            PR #{parsedRepoPreview.pullNum}
+                          </span>
+                        )}
+                        <span className="text-zinc-500 font-normal">
+                          ({auditScope === 'PULL_REQUEST' ? 'Modo Pull Request' : 'Auditoria Completa'})
                         </span>
-                      )}
-                      <span className="text-zinc-500 font-normal">
-                        ({auditScope === 'PULL_REQUEST' ? 'Modo Pull Request' : 'Auditoria Completa'})
                       </span>
-                    </span>
+
+                      <button
+                        type="button"
+                        onClick={handleDirectLinkToProfile}
+                        disabled={isLinkingProfile}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-mono font-bold transition cursor-pointer"
+                        title="Vincular repositório diretamente ao perfil para re-auditoria automática a cada git push na main"
+                      >
+                        <Zap className="h-2.5 w-2.5 text-emerald-400 animate-pulse" />
+                        {isLinkingProfile ? 'Vinculando...' : 'Vincular ao Perfil (Auto Re-Audit na main)'}
+                      </button>
+                    </div>
                   ) : (
                     <span className="text-zinc-500">
                       {auditScope === 'PULL_REQUEST'

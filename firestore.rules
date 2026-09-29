@@ -17,5 +17,10 @@ service cloud.firestore {
       allow read: if true;
       allow create, update, delete: if true;
     }
+
+    match /linked_repositories/{repoId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
   }
 }

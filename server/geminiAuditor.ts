@@ -324,7 +324,7 @@ export function generateDeterministicDeepAudit(payload: GeminiAuditRequest): Gem
   };
 }
 
-const CANDIDATE_MODELS = ['gemini-3.7-flash', 'gemini-flash-latest'];
+const CANDIDATE_MODELS = ['gemini-3.5-flash', 'gemini-3.7-flash', 'gemini-flash-latest'];
 
 export async function runGeminiDeepAudit(
   payload: GeminiAuditRequest
@@ -1063,6 +1063,149 @@ ${verifiedContent}`;
   }
 
   return generateDeterministicAstRefactor(payload);
+}
+
+// ============================================================================
+// GOOGLE SEARCH DATA GROUNDING: THREAT INTELLIGENCE & LIVE CVE INTELLIGENCE
+// ============================================================================
+
+export interface ThreatIntelSearchRequest {
+  query: string;
+  category?: 'CVE' | 'ZERO_DAY' | 'SUPPLY_CHAIN' | 'SOLANA_SECURITY' | 'RUST_MEM_SAFETY' | 'PQC_NIST';
+  context?: string;
+}
+
+export interface ThreatIntelGroundingSource {
+  title: string;
+  url: string;
+}
+
+export interface ThreatIntelSearchResponse {
+  success: boolean;
+  source: 'google-search-grounding' | 'deterministic-fallback';
+  query: string;
+  category: string;
+  analysis: string;
+  sources: ThreatIntelGroundingSource[];
+  searchQueries: string[];
+  grounded: boolean;
+  timestamp: string;
+}
+
+/**
+ * Fallback determinístico para consultas de Threat Intelligence quando a API não estiver conectada
+ */
+export function generateDeterministicThreatIntel(
+  payload: ThreatIntelSearchRequest,
+  reason?: string
+): ThreatIntelSearchResponse {
+  const query = payload.query.trim();
+  const category = payload.category || 'CVE';
+
+  let curatedAnalysis = `### 🛡️ Análise Preliminar de Threat Intelligence: ${query}\n\n`;
+  curatedAnalysis += `**Categoria:** ${category}\n`;
+  if (reason) {
+    curatedAnalysis += `*Nota do Sistema:* Atuando via base de conhecimento local consolidada (${reason}).\n\n`;
+  }
+
+  curatedAnalysis += `#### 1. Contexto e Vetor de Risco
+O termo ou vulnerabilidade pesquisada refere-se a riscos de segurança associados ao ecossistema moderno de sistemas distribuídos e contratos inteligentes. Em ambientes Rust e Solana, falhas desta categoria comumente envolvem:
+- **Insegurança de Memória ou Concorrência:** Corrupção de ponteiros brutos (*raw pointers*), condições de corrida em blocos multithread ou falhas de ciclo de vida em referências.
+- **Falha de Autorização e Validação:** Falta de verificação explícita do signatário (*signer check*) ou ausência de validação de propriedade (*owner check*) em contas da blockchain.
+- **Vulnerabilidade de Cadeia de Suprimentos:** Dependências desatualizadas com advisories registrados no RustSec ou GitHub Advisory Database.
+
+#### 2. Recomendações Prioritárias de Mitigação
+1. **Auditoria de Dependências:** Execute \`cargo audit\` e \`cargo upgrade\` para garantir que crates afetadas sejam atualizadas para versões seguras.
+2. **Padrão Zero-Panic e DDD:** Substitua \`.unwrap()\` e \`.expect()\` por tratamento formal com \`Result<T, DomainError>\`.
+3. **Restrições de Conta em Contratos Anchor:** Adicione anotações estruturadas como \`#[account(has_one = authority)]\` e use PDAs com validação determinística de bump.
+4. **Criptografia Pós-Quântica:** Substitua algoritmos obsoletos por parâmetros padronizados pelo NIST (ML-KEM, ML-DSA).`;
+
+  return {
+    success: true,
+    source: 'deterministic-fallback',
+    query,
+    category,
+    analysis: curatedAnalysis,
+    sources: [
+      { title: 'RustSec Security Advisory Database', url: 'https://rustsec.org/advisories/' },
+      { title: 'Solana Security Best Practices', url: 'https://docs.solanalabs.com/developers/security' },
+      { title: 'NIST Computer Security Resource Center', url: 'https://csrc.nist.gov/projects/post-quantum-cryptography' },
+      { title: 'GitHub Advisory Database', url: 'https://github.com/advisories' },
+    ],
+    searchQueries: [query, `${query} vulnerability advisory`, `${query} rustsec cve`],
+    grounded: false,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+/**
+ * Executa pesquisa grounded via Google Search Data com gemini-3.5-flash e googleSearch tool
+ * Traz informações em tempo real, precisas e atualizadas da web (CVEs, RustSec, exploits recentes, NIST).
+ */
+export async function runThreatIntelSearchGrounding(
+  payload: ThreatIntelSearchRequest
+): Promise<ThreatIntelSearchResponse> {
+  const query = payload.query.trim();
+  const category = payload.category || 'CVE';
+
+  if (!ai || !apiKey) {
+    return generateDeterministicThreatIntel(payload, 'Chave de API Gemini não configurada');
+  }
+
+  const prompt = `Você é um Analista Chefe de Inteligência de Ameaças Cibernéticas (Cyber Threat Intelligence Specialist).
+Utilize os dados atualizados da web obtidos pelo Google Search para fornecer uma análise técnica de alta precisão sobre o seguinte tópico de segurança, vulnerabilidade, CVE, biblioteca ou vetor de ataque:
+
+Tópico de Pesquisa: "${query}"
+Categoria: ${category}
+${payload.context ? `Contexto adicional do projeto: ${payload.context}` : ''}
+
+DIRETIVAS OBRIGATÓRIAS:
+1. Obtenha e sintetize as informações mais recentes e precisas da web (CVEs recentes, advisories oficiais do RustSec, GitHub Security Advisories, NVD/NIST, relatórios de auditorias em Solana/Anchor e correções em crates).
+2. Estruture a resposta com formatação Markdown clara contendo:
+   - **Resumo Executivo da Ameaça / Vulnerabilidade**
+   - **Vetor Técnico de Exploração e Gravidade (CVSS/Impacto)**
+   - **Status Atual no Ecossistema (advisories ativos, explorações conhecidas no meio selvagem, PoCs)**
+   - **Recomendações e Medidas Concretas de Remediação (versões corrigidas de crates/pacotes, flags compilatórias, regras defensivas)**
+3. O idioma de toda a análise DEVE ser Português Técnico (PT-BR).`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-flash',
+      contents: prompt,
+      config: {
+        tools: [{ googleSearch: {} }],
+      },
+    });
+
+    const analysis = response.text || 'Nenhum parecer detalhado retornado pelo motor de inteligência.';
+    const rawChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const searchQueries = response.candidates?.[0]?.groundingMetadata?.webSearchQueries || [];
+
+    const sources: ThreatIntelGroundingSource[] = [];
+    for (const chunk of rawChunks) {
+      if (chunk.web?.uri) {
+        sources.push({
+          title: chunk.web.title || chunk.web.uri,
+          url: chunk.web.uri,
+        });
+      }
+    }
+
+    return {
+      success: true,
+      source: 'google-search-grounding',
+      query,
+      category,
+      analysis,
+      sources,
+      searchQueries,
+      grounded: sources.length > 0,
+      timestamp: new Date().toISOString(),
+    };
+  } catch (err: any) {
+    console.warn('[Google Search Data Grounding] Falha ao consultar gemini-3.5-flash com googleSearch:', err?.message);
+    return generateDeterministicThreatIntel(payload, err?.message || 'Erro na consulta do Google Search');
+  }
 }
 
 

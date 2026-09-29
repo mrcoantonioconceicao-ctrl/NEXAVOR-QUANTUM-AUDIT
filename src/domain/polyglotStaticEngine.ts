@@ -614,8 +614,8 @@ export function analyzePolyglotStaticPatterns(files: SourceFile[]): PolyglotAnal
             unsafeRiskDetail: 'Forjamento de assinaturas de webhook e tokens de autorização.',
             waveShockwaveRadius: 'SYSTEM_PROCESS',
             originalSnippet: line.trim(),
-            remediatedSnippet: `import crypto from 'node:crypto';\n// Remediação com comparação em tempo constante segura:\nconst isValid = crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(signature));`,
-            suggestion: 'Utilize `crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))` com verificação prévia de igualdade de comprimento de buffer.',
+            remediatedSnippet: `import crypto from 'node:crypto';\n// Remediação com verificação segura em tempo constante compatível com strings/buffers:\nconst sigA = Buffer.from(selectedTx?.signature || '', 'utf-8');\nconst sigB = Buffer.from(tx?.signature || '', 'utf-8');\nconst isSelected = sigA.length === sigB.length && crypto.timingSafeEqual(sigA, sigB);`,
+            suggestion: 'Utilize `const isSelected = sigA.length === sigB.length && crypto.timingSafeEqual(sigA, sigB);` para prevenir ataques de canal lateral (CWE-208) e evitar exceções RangeError por tamanhos divergentes de buffer.',
             miriVerificationStatus: 'COMPLIANT',
           });
         }

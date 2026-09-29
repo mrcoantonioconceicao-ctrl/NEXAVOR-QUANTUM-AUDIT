@@ -30,6 +30,7 @@ import {
 import { WebhookConfig, WebhookDeliveryLog, WebhookEvent, FuzzCrashAlert } from '../domain/types.ts';
 import { SecurityBadgeModal } from './SecurityBadgeModal.tsx';
 import { FuzzCrashAlertModal } from './FuzzCrashAlertModal.tsx';
+import { LinkedReposProfileSection } from './LinkedReposProfileSection.tsx';
 
 interface WebhookConfigViewProps {
   currentRepoUrl?: string;
@@ -53,6 +54,9 @@ export const WebhookConfigView: React.FC<WebhookConfigViewProps> = ({
   const [isFuzzModalOpen, setIsFuzzModalOpen] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
   const [isBadgeModalOpen, setIsBadgeModalOpen] = useState<boolean>(false);
+
+  // Sub-tab view selection
+  const [activeSubTab, setActiveSubTab] = useState<'linked_repos' | 'webhook_configs' | 'deliveries'>('linked_repos');
 
   // Form states
   const [repoUrl, setRepoUrl] = useState<string>(currentRepoUrl);
@@ -370,8 +374,56 @@ export const WebhookConfigView: React.FC<WebhookConfigViewProps> = ({
         </div>
       </div>
 
-      {/* Grid Layout: Config Form + Simulation & Instructions */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {/* Navigation Sub-Tabs */}
+      <div className="flex items-center gap-2 border-b border-zinc-800 pb-3 font-mono text-xs overflow-x-auto">
+        <button
+          onClick={() => setActiveSubTab('linked_repos')}
+          className={`px-4 py-2 rounded-lg font-bold transition flex items-center gap-2 cursor-pointer ${
+            activeSubTab === 'linked_repos'
+              ? 'bg-emerald-500 text-zinc-950 shadow-lg shadow-emerald-500/10'
+              : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800'
+          }`}
+        >
+          <Zap className="h-3.5 w-3.5" />
+          <span>Repositórios Vinculados (Auto-Audit na Main)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('webhook_configs')}
+          className={`px-4 py-2 rounded-lg font-bold transition flex items-center gap-2 cursor-pointer ${
+            activeSubTab === 'webhook_configs'
+              ? 'bg-emerald-500 text-zinc-950 shadow-lg shadow-emerald-500/10'
+              : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800'
+          }`}
+        >
+          <Webhook className="h-3.5 w-3.5" />
+          <span>Configuração Avançada de Webhook</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('deliveries')}
+          className={`px-4 py-2 rounded-lg font-bold transition flex items-center gap-2 cursor-pointer ${
+            activeSubTab === 'deliveries'
+              ? 'bg-emerald-500 text-zinc-950 shadow-lg shadow-emerald-500/10'
+              : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800'
+          }`}
+        >
+          <GitCommit className="h-3.5 w-3.5" />
+          <span>Histórico de Entregas ({deliveries.length})</span>
+        </button>
+      </div>
+
+      {/* Tab 1: Linked Repositories Profile Section */}
+      {activeSubTab === 'linked_repos' && (
+        <LinkedReposProfileSection
+          currentRepoUrl={currentRepoUrl}
+          showNotification={showNotification}
+        />
+      )}
+
+      {/* Tab 2: Advanced Webhook Configuration & Simulation */}
+      {activeSubTab === 'webhook_configs' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column (7 cols): Webhook Setup Form */}
         <div className="lg:col-span-7 space-y-6">
           <form onSubmit={handleSaveConfig} className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-5 space-y-5">
@@ -706,7 +758,11 @@ export const WebhookConfigView: React.FC<WebhookConfigViewProps> = ({
           </div>
         </div>
       </div>
+      )}
 
+      {/* Tab 3: Webhook Deliveries & Fuzzing History */}
+      {activeSubTab === 'deliveries' && (
+      <div className="space-y-6">
       {/* Fuzzing CI/CD & Memory Safety Alert Mechanism Section */}
       <div className="rounded-lg border border-red-900/60 bg-red-950/20 p-5 space-y-4 shadow-sm shadow-red-950/40">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-red-900/40 font-mono">
@@ -964,6 +1020,8 @@ export const WebhookConfigView: React.FC<WebhookConfigViewProps> = ({
           </div>
         )}
       </div>
+      </div>
+      )}
 
       <SecurityBadgeModal
         isOpen={isBadgeModalOpen}

@@ -87,15 +87,30 @@ export function parseGitHubRepoUrl(repoUrl: string): { owner: string; repo: stri
  * Busca os arquivos e metadados de um repositório no GitHub via API
  */
 export async function fetchGitHubRepository(options: FetchRepositoryOptions) {
-  const response = await fetch('/api/github/fetch-repo', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(options),
-  });
+  let response: Response;
+  try {
+    response = await fetch('/api/github/fetch-repo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(options),
+    });
+  } catch {
+    // Fallback de conexão se a requisição POST sofrer interrupção
+    response = await fetch(
+      `/api/github/repo?url=${encodeURIComponent(options.url)}&token=${encodeURIComponent(options.githubToken || '')}&scope=${encodeURIComponent(options.scope || '')}`
+    );
+  }
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || errorData.details || 'Falha ao buscar repositório no GitHub.');
+    let errorMsg = 'Falha ao buscar repositório no GitHub.';
+    try {
+      const errorData = await response.json();
+      errorMsg = errorData.error || errorData.details || errorMsg;
+    } catch {
+      // Se não for JSON, ler status
+      errorMsg = `Erro ${response.status} ao conectar à API do GitHub. Verifique a URL ou token.`;
+    }
+    throw new Error(errorMsg);
   }
 
   return await response.json();

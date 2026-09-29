@@ -32,6 +32,7 @@ import {
   Filter,
   CheckCircle2,
   SlidersHorizontal,
+  Globe,
 } from 'lucide-react';
 import { SecurityAuditReport, VulnerabilitySeverity, SourceFile, RustVulnerability } from '../domain/types.ts';
 import { TabType } from './Sidebar.tsx';
@@ -1357,6 +1358,19 @@ export const AuditDashboard: React.FC<AuditDashboardProps> = ({
                     >
                       <Sparkles className="h-3.5 w-3.5 text-emerald-200" />
                       <span>⚡ Inspecionar &amp; Corrigir</span>
+                    </button>
+
+                    {/* Google Search Grounding Button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onNavigateToTab('threatIntel');
+                      }}
+                      className="px-2.5 py-1.5 text-[11px] font-mono font-semibold rounded-lg bg-blue-950/60 hover:bg-blue-900/60 text-blue-300 border border-blue-500/30 flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title="Consultar Inteligência em Tempo Real com Google Search Grounding (gemini-3.5-flash)"
+                    >
+                      <Globe className="h-3 w-3 text-blue-400" />
+                      <span>Google Search</span>
                     </button>
 
                     {/* Secondary: 1-Click PR */}

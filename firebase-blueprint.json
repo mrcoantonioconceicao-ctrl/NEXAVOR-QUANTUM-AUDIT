@@ -36,6 +36,26 @@
         "status": { "type": "string" }
       },
       "required": ["id", "event", "repository", "timestamp"]
+    },
+    "LinkedRepository": {
+      "title": "LinkedRepository",
+      "description": "GitHub repository directly linked to user profile for automatic re-audits on main branch push",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "repoUrl": { "type": "string" },
+        "repoFullName": { "type": "string" },
+        "targetBranch": { "type": "string" },
+        "autoReauditOnPush": { "type": "boolean" },
+        "secret": { "type": "string" },
+        "webhookUrl": { "type": "string" },
+        "linkedAt": { "type": "string", "format": "date-time" },
+        "lastAuditAt": { "type": "string", "format": "date-time" },
+        "lastAuditScore": { "type": "number" },
+        "totalReaudits": { "type": "number" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "repoUrl", "repoFullName", "targetBranch", "autoReauditOnPush"]
     }
   },
   "firestore": {
@@ -46,6 +66,10 @@
     "/webhook_events/{eventId}": {
       "schema": "WebhookEvent",
       "description": "Stores inbound webhook triggers and verification history"
+    },
+    "/linked_repositories/{repoId}": {
+      "schema": "LinkedRepository",
+      "description": "Stores GitHub repositories linked to audit profiles for auto re-audit on push"
     }
   }
 }

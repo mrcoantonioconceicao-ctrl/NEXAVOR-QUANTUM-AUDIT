@@ -58,8 +58,68 @@ export interface FuzzCrashAlertData {
   author?: string;
 }
 
+export interface LinkedRepositoryData {
+  id: string;
+  repoUrl: string;
+  repoFullName: string;
+  targetBranch: string; // e.g. 'main'
+  autoReauditOnPush: boolean;
+  secret: string;
+  webhookUrl: string;
+  linkedAt: string;
+  lastAuditAt?: string;
+  lastAuditScore?: number;
+  totalReaudits: number;
+  status: 'ACTIVE_LINKED' | 'PAUSED' | 'SYNCING';
+  lastCommitSha?: string;
+  lastCommitMessage?: string;
+  lastCommitAuthor?: string;
+}
+
 // In-Memory store for Webhook Configurations
 const webhookConfigs: Map<string, WebhookConfigData> = new Map();
+
+// In-Memory store for Linked GitHub Repositories directly bound to User Audit Profile
+const linkedRepositories: Map<string, LinkedRepositoryData> = new Map();
+
+// Seed user profile with initial linked repositories
+const DEFAULT_LINKED_ID_1 = 'link_repo_atolada';
+linkedRepositories.set(DEFAULT_LINKED_ID_1, {
+  id: DEFAULT_LINKED_ID_1,
+  repoUrl: 'https://github.com/mrcoantonioconceicao-ctrl/Atolada-anchor',
+  repoFullName: 'mrcoantonioconceicao-ctrl/Atolada-anchor',
+  targetBranch: 'main',
+  autoReauditOnPush: true,
+  secret: 'sec_qaudit_9941a87b3c2d',
+  webhookUrl: '/api/webhooks/github?secret=sec_qaudit_9941a87b3c2d',
+  linkedAt: new Date(Date.now() - 3600000 * 24 * 7).toISOString(),
+  lastAuditAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+  lastAuditScore: 100,
+  totalReaudits: 8,
+  status: 'ACTIVE_LINKED',
+  lastCommitSha: '7f9c2d1',
+  lastCommitMessage: 'PR #2: Conclusão de auditoria - Sanar todos os alertas ativos do RustShield',
+  lastCommitAuthor: 'mrcoantonioconceicao-ctrl',
+});
+
+const DEFAULT_LINKED_ID_2 = 'link_repo_sandbox';
+linkedRepositories.set(DEFAULT_LINKED_ID_2, {
+  id: DEFAULT_LINKED_ID_2,
+  repoUrl: 'https://github.com/solana-labs/solana_sandbox_counter',
+  repoFullName: 'solana-labs/solana_sandbox_counter',
+  targetBranch: 'main',
+  autoReauditOnPush: true,
+  secret: 'sec_qaudit_solana_901a',
+  webhookUrl: '/api/webhooks/github?secret=sec_qaudit_solana_901a',
+  linkedAt: new Date(Date.now() - 3600000 * 24 * 3).toISOString(),
+  lastAuditAt: new Date(Date.now() - 3600000 * 5).toISOString(),
+  lastAuditScore: 98,
+  totalReaudits: 3,
+  status: 'ACTIVE_LINKED',
+  lastCommitSha: 'e42a9b1',
+  lastCommitMessage: 'feat(anchor): initialize counter seeds and overflow check',
+  lastCommitAuthor: 'solana-dev',
+});
 
 // In-Memory store for Webhook Deliveries Log
 const webhookDeliveries: WebhookDeliveryData[] = [];
@@ -264,6 +324,166 @@ export function handleGetWebhookDeliveries(_req: Request, res: Response) {
   });
 }
 
+// GET /api/linked-repos
+export function handleGetLinkedRepos(_req: Request, res: Response) {
+  const repos = Array.from(linkedRepositories.values());
+  return res.json({
+    success: true,
+    repos,
+    totalCount: repos.length,
+    activeCount: repos.filter((r) => r.autoReauditOnPush && r.status === 'ACTIVE_LINKED').length,
+  });
+}
+
+// POST /api/linked-repos
+export function handleSaveLinkedRepo(req: Request, res: Response) {
+  try {
+    const { repoUrl, targetBranch = 'main', autoReauditOnPush = true, secret } = req.body;
+
+    if (!repoUrl || typeof repoUrl !== 'string') {
+      return res.status(400).json({ error: 'URL do repositório GitHub é obrigatória.' });
+    }
+
+    let cleanUrl = repoUrl.trim().replace(/\.git$/, '');
+    if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
+      cleanUrl = `https://github.com/${cleanUrl}`;
+    }
+
+    const urlParts = cleanUrl.replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/^github\.com\//i, '').split('/');
+    const repoFullName = urlParts.length >= 2 ? `${urlParts[0]}/${urlParts[1]}` : cleanUrl;
+
+    const existing = Array.from(linkedRepositories.values()).find(
+      (lr) => lr.repoFullName.toLowerCase() === repoFullName.toLowerCase() || lr.repoUrl.toLowerCase() === cleanUrl.toLowerCase()
+    );
+
+    const id = existing?.id || `link_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+    const generatedSecret = secret || existing?.secret || `sec_qaudit_${crypto.randomBytes(8).toString('hex')}`;
+    const webhookUrl = `/api/webhooks/github?secret=${generatedSecret}`;
+
+    const linkedRepo: LinkedRepositoryData = {
+      id,
+      repoUrl: cleanUrl,
+      repoFullName,
+      targetBranch: targetBranch || 'main',
+      autoReauditOnPush: autoReauditOnPush !== false,
+      secret: generatedSecret,
+      webhookUrl,
+      linkedAt: existing?.linkedAt || new Date().toISOString(),
+      lastAuditAt: existing?.lastAuditAt || new Date().toISOString(),
+      lastAuditScore: existing?.lastAuditScore || 100,
+      totalReaudits: existing?.totalReaudits || 1,
+      status: 'ACTIVE_LINKED',
+      lastCommitSha: existing?.lastCommitSha || crypto.randomBytes(4).toString('hex'),
+      lastCommitMessage: existing?.lastCommitMessage || `link: repository bound to user audit profile on ${targetBranch}`,
+      lastCommitAuthor: existing?.lastCommitAuthor || 'mrcoantonioconceicao-ctrl',
+    };
+
+    linkedRepositories.set(id, linkedRepo);
+
+    // Also mirror to webhookConfigs for background compatibility
+    const configId = `wh_config_${id}`;
+    webhookConfigs.set(configId, {
+      id: configId,
+      repoUrl: cleanUrl,
+      webhookUrl,
+      secret: generatedSecret,
+      events: ['push', 'pull_request'],
+      autoAuditOnPush: autoReauditOnPush !== false,
+      active: true,
+      createdAt: linkedRepo.linkedAt,
+      lastTriggeredAt: linkedRepo.lastAuditAt,
+      totalDeliveries: linkedRepo.totalReaudits,
+    });
+
+    broadcastEvent('linked_repo_added', { repo: linkedRepo });
+
+    return res.json({
+      success: true,
+      message: `Repositório '${repoFullName}' vinculado ao perfil com re-auditoria automática ativada na branch '${targetBranch}'.`,
+      repo: linkedRepo,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: 'Erro ao vincular repositório ao perfil.', details: error?.message });
+  }
+}
+
+// DELETE /api/linked-repos/:id
+export function handleDeleteLinkedRepo(req: Request, res: Response) {
+  const { id } = req.params;
+  if (!linkedRepositories.has(id)) {
+    return res.status(404).json({ error: 'Repositório vinculado não encontrado.' });
+  }
+
+  const repo = linkedRepositories.get(id);
+  linkedRepositories.delete(id);
+  webhookConfigs.delete(`wh_config_${id}`);
+
+  broadcastEvent('linked_repo_deleted', { id, repoFullName: repo?.repoFullName });
+  return res.json({ success: true, message: `Repositório '${repo?.repoFullName}' desvinculado com sucesso.` });
+}
+
+// PATCH /api/linked-repos/:id
+export function handleUpdateLinkedRepo(req: Request, res: Response) {
+  const { id } = req.params;
+  const existing = linkedRepositories.get(id);
+
+  if (!existing) {
+    return res.status(404).json({ error: 'Repositório vinculado não encontrado.' });
+  }
+
+  const { autoReauditOnPush, targetBranch, status } = req.body;
+
+  if (autoReauditOnPush !== undefined) existing.autoReauditOnPush = Boolean(autoReauditOnPush);
+  if (targetBranch) existing.targetBranch = targetBranch;
+  if (status) existing.status = status;
+
+  linkedRepositories.set(id, existing);
+  broadcastEvent('linked_repo_updated', { repo: existing });
+
+  return res.json({
+    success: true,
+    message: 'Configurações do repositório vinculado atualizadas com sucesso.',
+    repo: existing,
+  });
+}
+
+// POST /api/linked-repos/simulate-push
+export async function handleSimulatePushReaudit(req: Request, res: Response) {
+  try {
+    const {
+      repoUrl = 'https://github.com/mrcoantonioconceicao-ctrl/Atolada-anchor',
+      branch = 'main',
+      commitMessage = 'feat(sec): trigger automatic re-audit pipeline on main branch push',
+      author = 'mrcoantonioconceicao-ctrl',
+    } = req.body;
+
+    const commitSha = crypto.randomBytes(4).toString('hex');
+    const mockReq: any = {
+      headers: {
+        'x-github-event': 'push',
+      },
+      body: {
+        event: 'push',
+        ref: `refs/heads/${branch}`,
+        head_commit: {
+          id: `${commitSha}823901f`,
+          message: commitMessage,
+          author: { name: author },
+        },
+        pusher: { name: author },
+        repository: {
+          html_url: repoUrl,
+          full_name: repoUrl.replace(/^https?:\/\//i, '').replace(/^github\.com\//i, ''),
+        },
+      },
+    };
+
+    return handleIncomingGitHubWebhook(mockReq, res);
+  } catch (error: any) {
+    return res.status(500).json({ error: 'Falha ao simular evento de re-auditoria.', details: error?.message });
+  }
+}
+
 // POST /api/webhooks/github
 export async function handleIncomingGitHubWebhook(req: Request, res: Response) {
   const startTime = Date.now();
@@ -358,6 +578,36 @@ export async function handleIncomingGitHubWebhook(req: Request, res: Response) {
     matchingConfig.totalDeliveries += 1;
   }
 
+  // Update matching Linked Repository in user profile and trigger automatic re-audit pipeline!
+  const cleanIncomingUrl = repoUrl.toLowerCase().replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/^github\.com\//i, '').replace(/\.git$/, '');
+  const matchingLinkedRepo = Array.from(linkedRepositories.values()).find((lr) => {
+    const cleanLr = lr.repoUrl.toLowerCase().replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/^github\.com\//i, '').replace(/\.git$/, '');
+    return cleanLr === cleanIncomingUrl || lr.repoFullName.toLowerCase() === cleanIncomingUrl || cleanLr.includes(cleanIncomingUrl) || cleanIncomingUrl.includes(cleanLr);
+  });
+
+  if (matchingLinkedRepo && matchingLinkedRepo.autoReauditOnPush) {
+    if (branch === matchingLinkedRepo.targetBranch || branch === 'main' || branch === 'master') {
+      matchingLinkedRepo.lastAuditAt = new Date().toISOString();
+      matchingLinkedRepo.lastAuditScore = score;
+      matchingLinkedRepo.totalReaudits += 1;
+      matchingLinkedRepo.lastCommitSha = commitSha;
+      matchingLinkedRepo.lastCommitMessage = commitMessage;
+      matchingLinkedRepo.lastCommitAuthor = author;
+      matchingLinkedRepo.status = 'ACTIVE_LINKED';
+
+      broadcastEvent('linked_repo_reaudited', {
+        repo: matchingLinkedRepo,
+        commitSha,
+        commitMessage,
+        author,
+        branch,
+        score,
+        delivery: deliveryLog,
+        message: `🔄 Re-auditoria automática concluída para o repositório vinculado '${matchingLinkedRepo.repoFullName}' na branch '${branch}'. Score: ${score}/100.`,
+      });
+    }
+  }
+
   // Broadcast real-time delivery via SSE to all connected UIs!
   broadcastEvent('webhook_triggered', {
     delivery: deliveryLog,
@@ -367,6 +617,7 @@ export async function handleIncomingGitHubWebhook(req: Request, res: Response) {
     commitMessage,
     author,
     score,
+    linkedRepo: matchingLinkedRepo || null,
     message: `⚡ Webhook GitHub (${event}): Commit [${commitSha}] por @${author} auditado em tempo real!`,
   });
 

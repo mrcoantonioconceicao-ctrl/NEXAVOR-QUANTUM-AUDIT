@@ -26,11 +26,13 @@ import {
   Flame,
   Network,
   Sparkles,
+  Globe,
 } from 'lucide-react';
 import { SecurityAuditReport } from '../domain/types.ts';
 
 export type TabType =
   | 'dashboard'
+  | 'threatIntel'
   | 'fuzzing'
   | 'compliance'
   | 'pqc'
@@ -91,6 +93,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: LayoutDashboard,
       badge: vulnTotal > 0 ? `${vulnTotal}` : undefined,
       badgeColor: criticalCount > 0 ? 'bg-rose-500/20 text-rose-400 border-rose-500/30' : 'bg-zinc-800 text-zinc-400',
+    },
+    {
+      id: 'threatIntel' as TabType,
+      label: 'Google Threat Intel',
+      description: 'Search Grounding (Gemini 3.5)',
+      icon: Globe,
+      badge: 'Google Search',
+      badgeColor: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
     },
     {
       id: 'compliance' as TabType,
@@ -202,10 +212,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'webhooks' as TabType,
-      label: 'Webhooks & CI/CD',
-      description: 'Gatilhos Automáticos GitHub',
+      label: 'Repositórios & Webhooks',
+      description: 'Vincular Repos & Auto-Audit',
       icon: Webhook,
-      badge: 'Realtime',
+      badge: 'Auto-Audit',
       badgeColor: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
     },
   ];

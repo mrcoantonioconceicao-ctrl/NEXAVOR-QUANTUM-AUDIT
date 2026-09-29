@@ -18,6 +18,7 @@ interface TopBarProps {
 
 const TAB_TITLES: Record<TabType, { title: string; subtitle: string }> = {
   dashboard: { title: 'Dashboard Executivo', subtitle: 'Métricas e Postura de Segurança' },
+  threatIntel: { title: 'Google Threat Intel & CVEs ao Vivo', subtitle: 'Search Grounding em Tempo Real (Gemini 3.5 Flash + Google Search)' },
   compliance: { title: 'Governança & Conformidade GRC', subtitle: 'SOC 2, ISO 27001, NIST SP 800-218, FAIR & SBOM' },
   pqc: { title: 'Auditoria Criptográfica & Zero Trust', subtitle: 'AES-256-GCM, ChaCha20-Poly1305, Ed25519 & Constant-Time' },
   graphRag: { title: 'Grafo de Conhecimento & RAG Híbrido', subtitle: 'Vector RAG (NIST/FIPS/PCI) + GraphRAG (Neo4j/FalkorDB)' },
@@ -32,7 +33,7 @@ const TAB_TITLES: Record<TabType, { title: string; subtitle: string }> = {
   tests: { title: 'Testes de Segurança', subtitle: 'Suíte Miri e Validação Dinâmica' },
   fuzzing: { title: 'Cargo-Fuzz & Memory Safety', subtitle: 'LibFuzzer, ASan e Análise Pericial de Corpora de Crash' },
   architecture: { title: 'Arquitetura & DDD', subtitle: 'Bounded Contexts e SOA' },
-  webhooks: { title: 'Webhooks & CI/CD', subtitle: 'Gatilhos Automáticos e Auditoria em Tempo Real' },
+  webhooks: { title: 'Repositórios Vinculados & Webhooks', subtitle: 'Re-Auditoria Automática a cada Push na Branch Main' },
 };
 
 

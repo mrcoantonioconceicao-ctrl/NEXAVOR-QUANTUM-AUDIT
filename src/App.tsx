@@ -21,6 +21,7 @@ import { EnterpriseAuditTrail } from './components/EnterpriseAuditTrail.tsx';
 import { FuzzCrashBanner } from './components/FuzzCrashBanner.tsx';
 import { FuzzCrashAlertModal } from './components/FuzzCrashAlertModal.tsx';
 import { FuzzingDashboard } from './components/FuzzingDashboard.tsx';
+import { ThreatIntelSearchHub } from './components/ThreatIntelSearchHub.tsx';
 import { getStoredGitHubToken } from './services/tokenStorage.ts';
 import { SecurityAuditReport, BpmnStep, FuzzCrashAlert } from './domain/types.ts';
 
@@ -599,6 +600,11 @@ pub mod solana_sandbox_counter {
               )}
             </div>
 
+          ) : activeTab === 'threatIntel' ? (
+            <ThreatIntelSearchHub
+              initialQuery={report?.vulnerabilities?.[0]?.title ? `${report.vulnerabilities[0].title} ${report.vulnerabilities[0].cwe || ''}` : 'Solana Anchor #[account(has_one)] authority check vulnerability'}
+              onShowNotification={showNotification}
+            />
           ) : activeTab === 'compliance' ? (
             <ComplianceGovernanceHub report={null} />
           ) : activeTab === 'pqc' ? (

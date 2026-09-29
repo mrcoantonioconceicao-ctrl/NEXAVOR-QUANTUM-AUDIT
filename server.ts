@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
-import { handleAnalyzeRepo, handleAstScan, handleFetchGitHub, handleGetSystemMetrics, handleOsvBatchProxy, handleCreateGitHubPullRequest, handleSuggestRustPatch, handleAstRefactor, handleCreateRefactorPullRequest, handleHybridRagQuery, handleQueryImpactGraph, handleExportCypher, handleSyncGraph } from './server/routes';
+import { handleAnalyzeRepo, handleAstScan, handleFetchGitHub, handleGetSystemMetrics, handleOsvBatchProxy, handleCreateGitHubPullRequest, handleSuggestRustPatch, handleAstRefactor, handleCreateRefactorPullRequest, handleHybridRagQuery, handleQueryImpactGraph, handleExportCypher, handleSyncGraph, handleThreatIntelSearch } from './server/routes';
 import { mcpRouter } from './server/mcpServer';
 
 import {
@@ -16,6 +16,11 @@ import {
   handleGetFuzzAlerts,
   handleFuzzCrashAlert,
   handleSimulateFuzzCrashAlert,
+  handleGetLinkedRepos,
+  handleSaveLinkedRepo,
+  handleDeleteLinkedRepo,
+  handleUpdateLinkedRepo,
+  handleSimulatePushReaudit,
 } from './server/webhooks';
 
 import { handleBadgeSvg } from './server/badgeGenerator';
@@ -51,6 +56,10 @@ async function startServer() {
   app.get('/api/rag/cypher-export', handleExportCypher);
   app.post('/api/rag/graph-sync', handleSyncGraph);
 
+  // Google Search Data Grounding (Threat Intelligence com gemini-3.5-flash e googleSearch)
+  app.post('/api/audit/threat-intel-search', handleThreatIntelSearch);
+  app.post('/api/threat-intel/search', handleThreatIntelSearch);
+
   // Real API Routes
   app.post('/api/audit/analyze', handleAnalyzeRepo);
   app.post('/api/audit/ast-scan', handleAstScan);
@@ -58,6 +67,9 @@ async function startServer() {
   app.post('/api/audit/ast-refactor', handleAstRefactor);
   app.post('/api/audit/osv-batch', handleOsvBatchProxy);
   app.get('/api/github/repo', handleFetchGitHub);
+  app.post('/api/github/repo', handleFetchGitHub);
+  app.get('/api/github/fetch-repo', handleFetchGitHub);
+  app.post('/api/github/fetch-repo', handleFetchGitHub);
   app.post('/api/github/create-pr', handleCreateGitHubPullRequest);
   app.post('/api/github/pulls', handleCreateGitHubPullRequest);
   app.post('/api/github/refactor-pr', handleCreateRefactorPullRequest);
@@ -70,6 +82,13 @@ async function startServer() {
   app.post('/api/webhooks/github', handleIncomingGitHubWebhook);
   app.post('/api/webhooks/simulate', handleSimulateWebhook);
   app.get('/api/webhooks/stream', handleWebhookStream);
+
+  // User Profile Linked GitHub Repositories (Auto Re-Audit on Push to Main)
+  app.get('/api/linked-repos', handleGetLinkedRepos);
+  app.post('/api/linked-repos', handleSaveLinkedRepo);
+  app.delete('/api/linked-repos/:id', handleDeleteLinkedRepo);
+  app.patch('/api/linked-repos/:id', handleUpdateLinkedRepo);
+  app.post('/api/linked-repos/simulate-push', handleSimulatePushReaudit);
 
   // Cargo-Fuzz Continuous CI/CD Memory Safety Alert Endpoints
   app.get('/api/webhooks/fuzz-alerts', handleGetFuzzAlerts);
