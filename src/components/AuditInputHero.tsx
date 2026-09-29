@@ -29,6 +29,7 @@ interface AuditInputHeroProps {
   isAuditing: boolean;
   lastErrorMessage?: string | null;
   onClearError?: () => void;
+  onOpenTokenModal?: () => void;
 }
 
 const LANGUAGE_TEMPLATES: Record<string, { fileName: string; repoName: string; code: string }> = {
@@ -228,6 +229,7 @@ export const AuditInputHero: React.FC<AuditInputHeroProps> = ({
   isAuditing,
   lastErrorMessage,
   onClearError,
+  onOpenTokenModal,
 }) => {
   const [inputMode, setInputMode] = useState<'url' | 'code'>('url');
   const [auditScope, setAuditScope] = useState<'FULL_REPO' | 'PULL_REQUEST'>('FULL_REPO');
@@ -442,15 +444,18 @@ export const AuditInputHero: React.FC<AuditInputHeroProps> = ({
               <span className="text-zinc-400">Sugestões:</span>
               <button
                 type="button"
-                onClick={() => setShowTokenInput(true)}
-                className="px-2 py-1 rounded bg-rose-900/60 border border-rose-700 text-rose-200 hover:bg-rose-800 transition-colors"
+                onClick={() => {
+                  if (onOpenTokenModal) onOpenTokenModal();
+                  else setShowTokenInput(true);
+                }}
+                className="px-2.5 py-1 rounded bg-rose-900/60 border border-rose-700 text-rose-200 hover:bg-rose-800 transition-colors font-bold flex items-center gap-1 cursor-pointer"
               >
-                + Adicionar Token do GitHub (PAT)
+                <span>🔑 Colar Token PAT</span>
               </button>
               <button
                 type="button"
                 onClick={() => setInputMode('code')}
-                className="px-2 py-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-200 hover:bg-zinc-700 transition-colors"
+                className="px-2 py-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-200 hover:bg-zinc-700 transition-colors cursor-pointer"
               >
                 Colar código no Editor Manual
               </button>

@@ -462,6 +462,7 @@ pub mod solana_sandbox_counter {
             isAuditing={isAuditing}
             lastErrorMessage={auditErrorMessage}
             onClearError={() => setAuditErrorMessage(null)}
+            onOpenTokenModal={() => setIsTokenModalOpen(true)}
           />
 
           {/* Tab Views */}

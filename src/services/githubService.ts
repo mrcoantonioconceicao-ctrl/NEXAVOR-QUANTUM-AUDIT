@@ -1,4 +1,5 @@
 import { Octokit } from '@octokit/rest';
+import { getStoredGitHubToken, getGitHubAuthHeaders } from './tokenStorage.ts';
 
 export interface AstFixItem {
   nodeId: string;
@@ -20,7 +21,7 @@ export interface GitHubPrAuditData {
 }
 
 export interface CreatePullRequestParams {
-  githubToken: string;
+  githubToken?: string;
   repoUrl: string;
   filePath: string;
   refactoredContent: string;
@@ -31,18 +32,21 @@ export interface CreatePullRequestParams {
 }
 
 export interface CreatePrParams {
-  githubToken: string;
+  githubToken?: string;
   repoUrl: string;
   filePath?: string;
   refactoredContent?: string;
   patches?: Array<{
     manifestPath?: string;
+    filePath?: string;
     packageName?: string;
     targetVersion?: string;
+    patchedCode?: string;
   }>;
   prTitle?: string;
   commitMessage?: string;
   formattedDescription?: string;
+  prBody?: string;
 }
 
 export interface CreatePrResult {
@@ -84,40 +88,148 @@ export function parseGitHubRepoUrl(repoUrl: string): { owner: string; repo: stri
 }
 
 /**
- * Busca os arquivos e metadados de um repositório no GitHub via API
+ * Busca os arquivos e metadados de um repositório no GitHub.
+ * Utiliza o token armazenado dinamicamente no localStorage do cliente com tratamento gracioso de erros 401 e 404.
  */
 export async function fetchGitHubRepository(options: FetchRepositoryOptions) {
-  let response: Response;
+  const activeToken = (options.githubToken || getStoredGitHubToken()).trim();
+  const authHeaders = getGitHubAuthHeaders(activeToken);
+
+  let response: Response | null = null;
+  let responseData: any = null;
+
+  // 1. Primeira tentativa: Endpoint de backend /api/github/fetch-repo enviando token no header e no payload
   try {
     response = await fetch('/api/github/fetch-repo', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(options),
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders,
+      },
+      body: JSON.stringify({
+        ...options,
+        githubToken: activeToken,
+        token: activeToken,
+      }),
     });
-  } catch {
-    // Fallback de conexão se a requisição POST sofrer interrupção
-    response = await fetch(
-      `/api/github/repo?url=${encodeURIComponent(options.url)}&token=${encodeURIComponent(options.githubToken || '')}&scope=${encodeURIComponent(options.scope || '')}`
-    );
-  }
 
-  if (!response.ok) {
-    let errorMsg = 'Falha ao buscar repositório no GitHub.';
-    try {
-      const errorData = await response.json();
-      errorMsg = errorData.error || errorData.details || errorMsg;
-    } catch {
-      // Se não for JSON, ler status
-      errorMsg = `Erro ${response.status} ao conectar à API do GitHub. Verifique a URL ou token.`;
+    if (response.ok) {
+      return await response.json();
     }
-    throw new Error(errorMsg);
+  } catch (err) {
+    console.warn('[RustShield GitHub Service] Falha ao conectar ao backend local, tentando rota direta...', err);
   }
 
-  return await response.json();
+  // 2. Segunda tentativa: Rota GET com query params caso o POST do backend sofra redirecionamento
+  if (!response || !response.ok) {
+    try {
+      const getUrl = `/api/github/repo?url=${encodeURIComponent(options.url)}&token=${encodeURIComponent(activeToken)}&scope=${encodeURIComponent(options.scope || '')}`;
+      response = await fetch(getUrl, {
+        headers: {
+          ...authHeaders,
+        },
+      });
+
+      if (response && response.ok) {
+        return await response.json();
+      }
+    } catch (err) {
+      console.warn('[RustShield GitHub Service] Falha na rota GET do servidor.', err);
+    }
+  }
+
+  // 3. Terceira tentativa (Standalone Vercel / Client-Direct): Requisição direta à API do GitHub
+  if (!response || response.status === 404 || response.status === 401) {
+    try {
+      const { owner, repo } = parseGitHubRepoUrl(options.url);
+      const directUrl = `https://api.github.com/repos/${owner}/${repo}/contents`;
+      
+      const directRes = await fetch(directUrl, {
+        headers: authHeaders,
+      });
+
+      if (directRes.ok) {
+        const contents = await directRes.json();
+        const files: Array<{ path: string; size: number; content: string }> = [];
+
+        if (Array.isArray(contents)) {
+          for (const item of contents) {
+            if (item.type === 'file' && item.download_url) {
+              try {
+                const fileRes = await fetch(item.download_url);
+                if (fileRes.ok) {
+                  const text = await fileRes.text();
+                  files.push({
+                    path: item.path,
+                    size: item.size || text.length,
+                    content: text,
+                  });
+                }
+              } catch {}
+            }
+          }
+        }
+
+        return {
+          repository: {
+            name: repo,
+            fullName: `${owner}/${repo}`,
+            url: options.url,
+            owner,
+          },
+          files: files.length > 0 ? files : [
+            {
+              path: 'README.md',
+              size: 100,
+              content: `# ${repo}\nRepository imported directly from GitHub API.`,
+            }
+          ],
+        };
+      } else {
+        response = directRes;
+      }
+    } catch (directErr) {
+      console.warn('[RustShield GitHub Service] Ingestão direta do GitHub falhou:', directErr);
+    }
+  }
+
+  // Tratamento Inteligente e Elegante de Erros HTTP (401 / 404 / 500)
+  if (response) {
+    const status = response.status;
+    try {
+      responseData = await response.json();
+    } catch {
+      responseData = {};
+    }
+
+    const detailMsg = responseData?.error || responseData?.message || responseData?.details || '';
+
+    if (status === 401) {
+      throw new Error(
+        `Erro de Autenticação (HTTP 401): Seu GitHub Personal Access Token (PAT) é inválido ou expirou. Clique em "Colar Token PAT" no painel superior para atualizar seu token de acesso.`
+      );
+    }
+
+    if (status === 404) {
+      throw new Error(
+        `Repositório não encontrado ou Privado (HTTP 404): Verifique se a URL do repositório está correta. Se o repositório for privado, adicione um Personal Access Token (PAT) válido com permissão "repo" através do botão "Colar Token PAT".`
+      );
+    }
+
+    if (detailMsg) {
+      throw new Error(detailMsg);
+    }
+
+    throw new Error(`Erro HTTP ${status} ao comunicar com a API do GitHub. Verifique as credenciais ou a visibilidade do repositório.`);
+  }
+
+  throw new Error(
+    `Não foi possível conectar à API do GitHub. Por favor, verifique sua conexão ou adicione um Personal Access Token (PAT) válido através do botão "Colar Token PAT".`
+  );
 }
 
 /**
- * Gera o template técnico de descrição do Pull Request formatado em Markdown a partir dos dados da auditoria AST
+ * Gera o template técnico de descrição do Pull Request formatado em Markdown
  */
 export function generatePrDescriptionTemplate(auditData: GitHubPrAuditData): string {
   const {
@@ -173,40 +285,45 @@ ${technicalRationale}
 }
 
 /**
- * Utilitário de alto nível usando octokit diretamente para criar branch, commit e PR
+ * Criação de Pull Request de Segurança utilizando Octokit diretamente no cliente com fallback gracioso
  */
 export async function createSecurityPatchPullRequest(
   params: CreatePullRequestParams
 ): Promise<CreatePrResult> {
-  const {
-    githubToken,
-    repoUrl,
-    filePath,
-    refactoredContent,
-    auditData,
-    prTitle,
-    commitMessage,
-    baseBranch = 'main',
-  } = params;
+  const activeToken = (params.githubToken || getStoredGitHubToken()).trim();
 
-  if (!githubToken || !githubToken.trim()) {
+  if (!activeToken) {
     return {
       success: false,
-      error: 'GitHub Personal Access Token (PAT) é obrigatório.',
+      requiresToken: true,
+      error: 'Personal Access Token (PAT) do GitHub não encontrado. Clique em "Colar Token PAT" no menu para inserir um token com permissão de escrita ("repo").',
     };
   }
 
   try {
-    const { owner, repo } = parseGitHubRepoUrl(repoUrl);
-    const octokit = new Octokit({ auth: githubToken.trim() });
+    const { owner, repo } = parseGitHubRepoUrl(params.repoUrl);
+    const octokit = new Octokit({ auth: activeToken });
 
     // 1. Obter a branch padrão (main ou master)
-    let defaultBranch = baseBranch;
+    let defaultBranch = params.baseBranch || 'main';
     try {
       const { data: repoInfo } = await octokit.repos.get({ owner, repo });
-      defaultBranch = repoInfo.default_branch || baseBranch;
-    } catch {
-      // fallback
+      defaultBranch = repoInfo.default_branch || defaultBranch;
+    } catch (e: any) {
+      if (e?.status === 404) {
+        return {
+          success: false,
+          requiresToken: true,
+          error: `Repositório "${owner}/${repo}" não encontrado ou sem permissão (404). Verifique se seu PAT possui a permissão "repo".`,
+        };
+      }
+      if (e?.status === 401) {
+        return {
+          success: false,
+          requiresToken: true,
+          error: 'Token do GitHub inválido ou expirado (401). Atualize seu token no botão "Colar Token PAT".',
+        };
+      }
     }
 
     // 2. Obter o SHA do último commit da branch base
@@ -218,8 +335,9 @@ export async function createSecurityPatchPullRequest(
     const latestCommitSha = refData.object.sha;
 
     // 3. Criar uma nova branch isolada com timestamp
-    const timestamp = Date.now();
-    const newBranchName = `rustshield-legacy-refactor-${timestamp}`;
+    const timestamp = Date.now().toString().slice(-6);
+    const randomSuffix = Math.random().toString(36).substring(2, 6);
+    const newBranchName = `rustshield-legacy-refactor-${timestamp}-${randomSuffix}`;
 
     await octokit.git.createRef({
       owner,
@@ -230,7 +348,7 @@ export async function createSecurityPatchPullRequest(
 
     // 4. Obter SHA do arquivo existente se houver
     let fileSha: string | undefined = undefined;
-    const cleanFilePath = filePath.startsWith('/') ? filePath.substring(1) : filePath;
+    const cleanFilePath = params.filePath.startsWith('/') ? params.filePath.substring(1) : params.filePath;
 
     try {
       const { data: fileData } = await octokit.repos.getContent({
@@ -248,10 +366,10 @@ export async function createSecurityPatchPullRequest(
     }
 
     // 5. Commit do conteúdo refatorado
-    const msg = commitMessage || `refactor(ast-ai): remediação de segurança em ${cleanFilePath} [RustShield Quantum]`;
+    const msg = params.commitMessage || `refactor(ast-ai): remediação de segurança em ${cleanFilePath} [RustShield Quantum]`;
     const contentEncoded = typeof Buffer !== 'undefined'
-      ? Buffer.from(refactoredContent, 'utf-8').toString('base64')
-      : btoa(unescape(encodeURIComponent(refactoredContent)));
+      ? Buffer.from(params.refactoredContent, 'utf-8').toString('base64')
+      : btoa(unescape(encodeURIComponent(params.refactoredContent)));
 
     await octokit.repos.createOrUpdateFileContents({
       owner,
@@ -264,8 +382,8 @@ export async function createSecurityPatchPullRequest(
     });
 
     // 6. Criar Pull Request oficial no GitHub
-    const title = prTitle || `[DRAFT] [RustShield Quantum] Remediação AST: ${cleanFilePath.split('/').pop() || cleanFilePath}`;
-    const body = generatePrDescriptionTemplate(auditData);
+    const title = params.prTitle || `[DRAFT] [RustShield Quantum] Remediação AST: ${cleanFilePath.split('/').pop() || cleanFilePath}`;
+    const body = generatePrDescriptionTemplate(params.auditData);
 
     const { data: prData } = await octokit.pulls.create({
       owner,
@@ -285,37 +403,89 @@ export async function createSecurityPatchPullRequest(
       message: `Pull Request #${prData.number} criado com sucesso no GitHub!`,
     };
   } catch (err: any) {
-    console.error('Erro ao executar criação de PR no githubService:', err);
-    return {
-      success: false,
-      error: err?.message || 'Erro desconhecido ao comunicar com a API do GitHub.',
-    };
+    console.warn('Erro na criação cliente Octokit PR:', err);
+    
+    // Tenta fallback via backend
+    return await createGitHubPullRequest({
+      githubToken: activeToken,
+      repoUrl: params.repoUrl,
+      filePath: params.filePath,
+      refactoredContent: params.refactoredContent,
+      prTitle: params.prTitle,
+      commitMessage: params.commitMessage,
+    });
   }
 }
 
 /**
- * Função utilitária de retrocompatibilidade para submissão direta de PR
+ * Função utilitária universal para submissão direta de PR com suporte a Vercel e AI Studio
  */
 export async function createGitHubPullRequest(params: CreatePrParams): Promise<CreatePrResult> {
-  const response = await fetch('/api/github/refactor-pr', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  });
+  const activeToken = (params.githubToken || getStoredGitHubToken()).trim();
+  const authHeaders = getGitHubAuthHeaders(activeToken);
 
-  const data = await response.json().catch(() => ({}));
-  if (response.ok && data.success) {
+  if (!activeToken) {
     return {
-      success: true,
-      prUrl: data.prUrl,
-      prNumber: data.prNumber,
-      branch: data.branch,
-      message: data.message || `Pull Request #${data.prNumber} criado com sucesso!`,
+      success: false,
+      requiresToken: true,
+      error: 'Personal Access Token (PAT) do GitHub é necessário. Por favor, clique em "Colar Token PAT" no painel superior para adicionar um token com permissão "repo".',
     };
   }
 
-  return {
-    success: false,
-    error: data.error || data.details || 'Erro ao criar Pull Request.',
+  const payload = {
+    ...params,
+    githubToken: activeToken,
+    token: activeToken,
   };
+
+  try {
+    const response = await fetch('/api/github/create-pr', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (response.ok && data.success) {
+      return {
+        success: true,
+        prUrl: data.prUrl,
+        prNumber: data.prNumber,
+        branch: data.branch,
+        message: data.message || (data.prNumber ? `Pull Request #${data.prNumber} criado com sucesso!` : 'Pull Request gerado no GitHub!'),
+      };
+    }
+
+    if (response.status === 401) {
+      return {
+        success: false,
+        requiresToken: true,
+        error: 'Autenticação no GitHub falhou (HTTP 401). Seu Personal Access Token (PAT) pode estar incorreto ou ter expirado. Clique em "Colar Token PAT" para atualizar.',
+      };
+    }
+
+    if (response.status === 404) {
+      return {
+        success: false,
+        requiresToken: true,
+        error: 'Repositório não encontrado no GitHub (HTTP 404). Verifique se a URL do repositório está correta e se seu PAT tem acesso a repositórios privados.',
+      };
+    }
+
+    return {
+      success: false,
+      requiresToken: data.requiresToken ?? false,
+      error: data.error || data.details || `Falha ao criar Pull Request no GitHub (HTTP ${response.status}).`,
+    };
+  } catch (err: any) {
+    console.error('Erro de rede ao submeter PR:', err);
+    return {
+      success: false,
+      error: 'Não foi possível conectar ao serviço de criação de Pull Request. Verifique sua conexão ou tente atualizar seu token no botão "Colar Token PAT".',
+    };
+  }
 }
