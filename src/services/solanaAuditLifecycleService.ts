@@ -6,6 +6,8 @@ import {
 } from '../domain/types.ts';
 import { analyzeSolanaAnchorInvariants, calculateStructuralEntropy } from './deterministicAuditEngine.ts';
 import { analyzePolyglotStaticPatterns } from '../domain/polyglotStaticEngine.ts';
+import { analyzeZkCircuitPrimitives } from '../domain/zkCircuitAuditor.ts';
+import { analyzeSolanaAnchorAstPatterns } from '../domain/solanaAnchorAstAnalyzer.ts';
 
 // ============================================================================
 // TIPAGEM DO CICLO DE AUDITORIA (AUTÔNOMO VS INTERATIVO HUMAN-IN-THE-LOOP)
@@ -341,12 +343,14 @@ export async function runSolanaAuditLifecycle(
     }
   }
 
-  // Step 2: Análise Estática Poliglota e Invariantes Adicionais
+  // Step 2: Análise Estática AST Solana Anchor, Poliglota e ZK Circuits
+  const astResult = analyzeSolanaAnchorAstPatterns(files);
   const solanaInvariants = analyzeSolanaAnchorInvariants(files);
+  const zkVulns = analyzeZkCircuitPrimitives(files);
   const polyglotResult = analyzePolyglotStaticPatterns(files);
   const entropy = calculateStructuralEntropy(files);
 
-  const combinedVulns = [...checklistVulns, ...solanaInvariants, ...polyglotResult.vulnerabilities];
+  const combinedVulns = [...checklistVulns, ...astResult.vulnerabilities, ...solanaInvariants, ...zkVulns, ...polyglotResult.vulnerabilities];
 
   // Remove duplicatas por arquivo e linha
   const uniqueVulns = combinedVulns.filter((v, index, self) =>

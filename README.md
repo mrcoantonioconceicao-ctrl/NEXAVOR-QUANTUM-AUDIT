@@ -1,14 +1,15 @@
-# 🛡️ RustShield Quantum — Solana Anchor Smart Contract & Enterprise Security Auditor
+# 🛡️ RustShield Quantum — Solana Anchor Smart Contract, ZK Circuit & Enterprise Security Auditor
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Anchor Framework](https://img.shields.io/badge/Anchor-v0.30.0-emerald.svg)](https://www.anchor-lang.com/)
 [![Solana](https://img.shields.io/badge/Solana-Mainnet--Beta%20%7C%20Devnet-14F195.svg?logo=solana)](https://solana.com)
+[![Zero Knowledge](https://img.shields.io/badge/ZK-Halo2%20%7C%20Zcash%20%7C%20Arkworks-purple.svg)]()
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8.3-3178C6.svg?logo=typescript)](https://www.typescriptlang.org/)
 [![Vercel Serverless](https://img.shields.io/badge/Vercel-Serverless%20Ready-black.svg?logo=vercel)](https://vercel.com)
 [![Build Status](https://img.shields.io/badge/Build-100%25%20Verified-brightgreen.svg)]()
 [![Security Audit](https://img.shields.io/badge/Audit%20Score-100%2F100-success.svg)]()
 
-**RustShield Quantum** é um ecossistema unificado de auditoria de segurança pericial, análise estática determinística de código AST, avaliação de criptografia pós-quântica (NIST PQC) e plataforma de contratos inteligentes em **Solana Anchor** otimizada para ambientes Serverless (Vercel).
+**RustShield Quantum** é um ecossistema unificado de auditoria de segurança pericial, análise estática determinística de código AST, auditoria de circuitos Zero-Knowledge (Halo2/Zcash/Arkworks), avaliação de criptografia pós-quântica (NIST PQC) e plataforma de contratos inteligentes em **Solana Anchor** otimizada para ambientes Serverless (Vercel).
 
 ---
 
@@ -21,34 +22,43 @@
 - **Segurança de Memória Hardened**: Prevenção rigorosa contra *Integer Overflow* via `checked_add` e erros customizados (`ErrorCode::CounterOverflow`).
 - **Testes de Integração**: Suíte de testes com derivação determinística de PDA (`b"counter"`, `authority`) e asserções completas em `tests/`.
 
-### 2. 🛡️ Motor Determinístico de Auditoria Pericial AST & Solana/Anchor (`solanaAuditLifecycleService.ts`)
-- **Invariantes em Smart Contracts Solana/Anchor**:
-  - *Signer Verification & Privileges*: Inspeciona estruturas `AccountInfo<'info>` vs `Signer<'info>` e restrições `#[account(signer)]` para barrar escalação de privilégios.
-  - *CPI Program ID Invariance*: Identifica chamadas cruzadas `invoke` / `invoke_signed` sem validação do `program_id` alvo (prevenção contra *CPI Spoofing*).
-  - *Derivação de PDAs e Canonical Bumps*: Detecta chamadas a `find_program_address` sem validação de `bump` canônico.
-  - *Aritmética Financeira Segura*: Mapeia manipulação de saldos sem `checked_add` / `checked_sub`.
-- **Ciclo de Auditoria Autónomo vs Interativo (`runSolanaAuditLifecycle`)**:
-  - `audit-cycle`: Análise determinística ponta a ponta sem intervenção manual.
-  - `audit-assist`: Fluxo interativo *human-in-the-loop* que gera checkpoints de decisão em falhas críticas antes da emissão do relatório final.
-- **Gerador de Patches & PoCs**: Emissão automática de diffs de correção de macros Anchor e scripts de teste de exploração em TypeScript/Anchor Framework (`pocTestCode`).
+### 2. 🧩 Módulo Dedicado de Análise AST Solana Anchor (`solanaAnchorAstAnalyzer.ts`)
+- **Verificação de Assinantes & Escalação de Privilégios**: Detecta conversão insegura de `Signer<'info>` / `#[account(signer)]` para `AccountInfo<'info>` genérico (CWE-285).
+- **Aritmética Financeira Segura**: Mapeia mutações diretas de saldo (`+=`, `-=`, `*=`) sem o uso de `checked_add`, `checked_sub` e `checked_mul`.
+- **Canonical Bump em PDAs**: Garante que derivações via `find_program_address` ou `seeds = [...]` validem e persistam o *canonical bump* (`bump = account.bump`) prevenindo *bump spoofing* (CWE-347).
+- **Validação CPI (Cross-Program Invocation)**: Inspeciona chamadas `invoke` / `invoke_signed` exigindo validação de `target_program_id` com `require_keys_eq!`.
+- **Fail-Over Gracioso Local (`analyzeSolanaAnchorAstWithFallback`)**:
+  - Tenta requisições de API/AI remotas se fornecidas.
+  - Em caso de falha de rede, instabilidade (HTTP 503) ou *rate limit* (HTTP 429), ativa automaticamente o motor estático local com 0% de instabilidade ou interrupção.
 
-### 3. ⚡ Configuração Serverless Vercel & Isolamento de Build
-- **Isolamento da Build Web (`vercel.json` & `.vercelignore`)**: Vercel configurada estritamente como aplicação Vite/React (diretório `dist`). As pastas Rust (`programs/`, `target/`, `Cargo.toml`) são ativamente ignoradas no Serverless, reservando a compilação de binários nativos para o CI/CD do GitHub Actions.
+### 3. 🔐 Auditor de Circuitos Zero-Knowledge / Zcash / Halo2 (`zkCircuitAuditor.ts`)
+- **Unconstrained Variables (Soundness Leak)**: Identifica variáveis de testemunha alocadas em circuitos ZK sem restrições polinomiais (`enforce` / `constrain_equal`), que permitiriam a forjamento de provas sintaticamente válidas.
+- **Missing Range Check em Campos Finitos**: Alerta sobre conversões de escalares de corpos finitos (`Fr`/`Fq`) sem restrição de bits (*Lookup Tables* / decomposição de bits), prevenindo *wraparound* mod $p$.
+- **Nullifier Hash Inseguro**: Exige o uso de hashes algébricos amigáveis a ZK (Poseidon, Sinsemilla, Pedersen) com *Domain Separators* para derivação de Nullifiers contra gasto duplo (*Double Spending*).
+- **Privacidade & Log Witness Exposure**: Detecta exposição ou log de testemunhas privadas e segredos de gastos (*spending keys*) em texto claro.
+
+### 4. ⚡ Configuração Serverless Vercel & Isolamento de Build
+- **Isolamento de Build Estrito (`vercel.json` & `.vercelignore`)**:
+  - `outputDirectory`: `"dist"`
+  - `buildCommand`: `"npm run build"`
+  - `ignoreCommand`: `"git diff --quiet HEAD^ HEAD src/"` — Garante que alterações fora da pasta `src/` (como pastas Rust `programs/`, `target/`, `.anchor/`) cancelem a build na Vercel, delegando a compilação de binários nativos para o CI/CD no GitHub Actions.
 - **Adaptador Serverless (`/api/index.ts`)**: Rotas Express adaptadas para responder em Vercel Serverless / Edge Functions.
-- **Autonomia em Indisponibilidade (HTTP 503 / 429)**: Mecanismo de fallback gracioso local que entrega auditorias completas de forma autônoma caso APIs externas sofram *rate limit*.
 - **Injeção Dinâmica de PAT**: Token do GitHub gerenciado no `localStorage` do cliente e enviado via cabeçalho `Authorization: Bearer <token>`.
 
-### 4. 🧭 UX Cockpit Web & Navegação Fluida
-- **Navegação Lateral Fixa (`NavigationSidebar`)**: Barra de navegação persistente com indicadores de página ativa, status do repositório-alvo e atalhos rápidos.
-- **Atalhos e Histórico na TopBar (`TopBar.tsx`)**: Botão "Voltar" integrado com histórico em memória e sub-strip de atalhos rápidos (*Dashboard*, *Auditoria AST/Solana*, *Estúdio de Refatoração*, *PQC Quântica* e *Relatórios GRC*).
+### 5. 🧭 UX Cockpit Web, Histórico & Navegação Fluida
+- **Navegação Lateral Fixa (`NavigationSidebar.tsx`)**: Barra de navegação persistente com suporte a recolhimento, indicadores de página ativa, status do repositório-alvo e atalhos rápidos.
+- **Histórico na TopBar (`TopBar.tsx` & `tabHistory`)**:
+  - Botão "Voltar" integrado à pilha de navegação em memória (`tabHistory`).
+  - Sub-strip de atalhos rápidos para alternância instantânea entre *Dashboard*, *Auditoria AST/Solana*, *Estúdio de Refatoração*, *Criptografia PQC / ZK* e *Relatórios GRC*.
 
-### 5. 🔒 Governança, LGPD e Relatórios Executivos C-Level
-- **Anonimização Telemétrica LGPD/GDPR**: Sanitização rigorosa de identificadores de usuário e repositório utilizando hashes criptográficos **HMAC-SHA256** (`anonymizeLgpdHmacSha256`).
-- **Selos Executivos Vetoriais em SVG**: Geração dinâmica de badges visuais (`/api/badge/shield.svg`) para inclusão em relatórios executivos C-Level e documentação do repositório.
+### 6. 🛡️ Selos Vetoriais SVG Dinâmicos (`generateExecutiveSecuritySvgBadge`)
+- **Badges C-Level Executivos**: Função utilitária `generateExecutiveSecuritySvgBadge` que gera badges vetoriais personalizadas indicando pontuação CVSS, conformidade PQC e verificação ZK.
+- **Endpoint Público (`/api/badge/shield.svg`)**: Permite que os utilizadores incorporem os selos diretamente em arquivos `README.md` e relatórios corporativos externos.
 
-### 6. ⚛️ Criptografia Pós-Quântica (NIST PQC) & Refatoração AST
-- **Avaliação Quantum-Ready**: Transição recomendada para algoritmos aprovados pelo NIST (ML-KEM / Kyber, ML-DSA / Dilithium).
-- **Estúdio de Refatoração AST In-Place (`AstRefactorStudio`)**: Aplicação de patches de segurança de pânico zero e submissão automatizada de Pull Requests via Octokit.
+### 7. 🔒 Governança, LGPD e Criptografia Pós-Quântica (NIST PQC)
+- **Anonimização Telemétrica LGPD/GDPR**: Sanitização de identificadores sensíveis via hash **HMAC-SHA256** (`anonymizeLgpdHmacSha256`).
+- **Avaliação Quantum-Ready**: Recomendação de transição para algoritmos aprovados pelo NIST (ML-KEM / Kyber, ML-DSA / Dilithium).
+- **Estúdio de Refatoração AST In-Place (`AstRefactorStudio`)**: Aplicação de patches de segurança e submissão de Pull Requests via Octokit.
 
 ---
 
@@ -61,6 +71,7 @@
 | **Versão do Anchor** | `v0.30.0` |
 | **Linter TypeScript (`tsc`)** | `0 Erros` (Passou 100%) |
 | **Status de Compilação Web** | `Aprovado` (`compile_applet` & `vite build`) |
+| **Módulos Especiais** | ZK Circuit Auditor + Solana Anchor AST Engine |
 | **Redes Suportadas** | Localnet / Devnet / Mainnet-Beta |
 
 ---
@@ -69,7 +80,7 @@
 
 ```text
 .
-├── vercel.json                          # Configuração de Build Serverless para Vercel (Vite + SPA)
+├── vercel.json                          # Configuração de Build Serverless para Vercel (Isolamento em src/)
 ├── .vercelignore                        # Regras para ignorar crates e binários Rust no deploy Vercel
 ├── Anchor.toml                          # Configuração do Workspace Anchor (Localnet/Devnet)
 ├── Cargo.toml                           # Workspace Cargo do Smart Contract Rust
@@ -88,10 +99,11 @@
 ├── server/                              # Servidor Backend Express + Gemini API + MCP Protocol
 │   ├── routes.ts                        # Endpoints de Auditoria, RAG, Webhooks e Métricas
 │   ├── mcpServer.ts                     # Servidor do Protocolo MCP (SSE + JSON-RPC 2.0)
-│   └── badgeGenerator.ts                # Gerador de Badges SVG Executivos
+│   └── badgeGenerator.ts                # Gerador de Badges SVG Executivos (/api/badge/shield.svg)
 └── src/                                 # Cockpit Web Frontend (React 19, Tailwind, Motion)
     ├── App.tsx                          # Dashboard Unificada e Navegação com Histórico
     ├── components/                      # NavigationSidebar, TopBar e Módulos de Interface
+    ├── domain/                          # Módulos de Análise Estática (solanaAnchorAstAnalyzer, zkCircuitAuditor)
     └── services/                        # Motores Estáticos (solanaAuditLifecycleService, deterministicAuditEngine)
 ```
 
@@ -135,9 +147,16 @@ anchor test
 
 ---
 
+### 3. Exemplo de Incorporação do Selo Vetorial no README
+
+```markdown
+![RustShield Security Audit](https://seu-dominio.vercel.app/api/badge/shield.svg?repo=solana_sandbox_counter&score=100&grade=A%2B&pqc=1&zk=1)
+```
+
+---
+
 ## 📄 Licença
 Distribuído sob a licença **Apache 2.0**. Consulte o arquivo `LICENSE` para obter mais detalhes.
 
 ---
-*RustShield Quantum — Garantindo a segurança e resiliência de Smart Contracts Solana e software corporativo.*
-
+*RustShield Quantum — Garantindo a segurança e resiliência de Smart Contracts Solana, Circuitos Zero-Knowledge e software corporativo.*

@@ -1,4 +1,3 @@
-import crypto from 'node.js:crypto' ?? require('crypto');
 import {
   AstMetrics,
   RepositoryMetadata,
@@ -308,21 +307,76 @@ export function anonymizeLgpdTelemetry(
  * Gera um Badge SVG dinâmico e vetorial para exibição nos relatórios executivos C-Level
  * e no README dos repositórios auditados.
  */
-export function generateExecutiveSecuritySvgBadge(score: number, statusText: string = 'SECURED'): string {
-  let color = '#22c55e'; // Verde
-  if (score < 50) {
-    color = '#ef4444'; // Vermelho
-  } else if (score < 80) {
-    color = '#f59e0b'; // Amarelo/Laranja
+export interface ExecutiveBadgeOptions {
+  repoName?: string;
+  securityScore: number;
+  grade?: string;
+  isPqcCompliant?: boolean;
+  isZkVerified?: boolean;
+  standard?: string;
+}
+
+export function generateExecutiveSecuritySvgBadge(
+  scoreOrOptions: number | ExecutiveBadgeOptions,
+  legacyStatusText: string = 'SECURED'
+): string {
+  let repoName = 'RustShield Target';
+  let securityScore = 96;
+  let grade = 'A+';
+  let isPqcCompliant = true;
+  let isZkVerified = false;
+  let standard = 'ISO 27001 / SOC 2';
+
+  if (typeof scoreOrOptions === 'number') {
+    securityScore = scoreOrOptions;
+    grade = securityScore >= 90 ? 'A+' : securityScore >= 80 ? 'A' : securityScore >= 70 ? 'B' : 'C';
+  } else {
+    repoName = scoreOrOptions.repoName || 'RustShield Target';
+    securityScore = scoreOrOptions.securityScore;
+    grade = scoreOrOptions.grade || (securityScore >= 90 ? 'A+' : securityScore >= 80 ? 'A' : securityScore >= 70 ? 'B' : 'C');
+    isPqcCompliant = scoreOrOptions.isPqcCompliant ?? true;
+    isZkVerified = scoreOrOptions.isZkVerified ?? false;
+    standard = scoreOrOptions.standard || 'ISO 27001 / SOC 2';
   }
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="38" viewBox="0 0 240 38" fill="none">
-  <rect width="240" height="38" rx="8" fill="#0f172a" stroke="#334155" stroke-width="1.5"/>
-  <path d="M16 11L25 7L34 11V18C34 23.5 30.2 28.5 25 30C19.8 28.5 16 23.5 16 18V11Z" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-  <text x="44" y="23" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#94a3b8" letter-spacing="0.5">RUSTSHIELD QUANTUM</text>
-  <line x1="168" y1="10" x2="168" y2="28" stroke="#334155" stroke-width="1"/>
-  <text x="180" y="24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="14" font-weight="800" fill="${color}">${score}/100</text>
-</svg>`;
+  const statusText = securityScore >= 90 ? 'PASSED' : securityScore >= 70 ? 'WARNING' : 'FAILED';
+  const badgeColorHex = securityScore >= 90 ? '#10B981' : securityScore >= 70 ? '#F59E0B' : '#EF4444';
+  const sanitizeName = repoName.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  return `
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="32" role="img" aria-label="RustShield Quantum Audit: ${sanitizeName} ${securityScore}/100">
+  <title>RustShield Quantum Security Audit - ${sanitizeName}</title>
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#09090b"/>
+      <stop offset="100%" stop-color="#18181b"/>
+    </linearGradient>
+    <linearGradient id="statusGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="${badgeColorHex}"/>
+      <stop offset="100%" stop-color="${badgeColorHex}" stop-opacity="0.9"/>
+    </linearGradient>
+    <clipPath id="badgeClip">
+      <rect width="360" height="32" rx="6" fill="#fff"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#badgeClip)">
+    <!-- Left Dark Section -->
+    <rect width="190" height="32" fill="url(#bgGrad)"/>
+    <!-- Right Status Section -->
+    <rect x="190" width="170" height="32" fill="url(#statusGrad)"/>
+    <!-- Subtle Border Line -->
+    <rect width="360" height="32" rx="6" fill="none" stroke="#27272a" stroke-width="1.5"/>
+
+    <!-- Left Branding Text -->
+    <text x="12" y="20" fill="#10B981" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="bold">🛡️ RustShield Quantum</text>
+    <text x="180" y="20" fill="#a1a1aa" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9" text-anchor="end">${standard}</text>
+
+    <!-- Right Security Status Badge -->
+    <text x="275" y="20" fill="#09090b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="800" text-anchor="middle">${statusText}: ${securityScore}/100 [${grade}]${isPqcCompliant ? ' • PQC' : ''}${isZkVerified ? ' • ZK' : ''}</text>
+  </g>
+</svg>
+  `.trim();
 }
 
 // ============================================================================
@@ -437,7 +491,7 @@ export async function executeDeterministicSecurityAudit(
         phase: 'Fase 1: Correção Imediata de Invariantes Críticas e Signers (0-24h)',
         priority: 1,
         actions: [
-          'Adicionar verificação de assinaura `Signer<\'info\'>` e validação de Program IDs em chamadas CPI.',
+          'Adicionar verificação de assinatura `Signer<\'info\'>` e validação de Program IDs em chamadas CPI.',
           'Corrigir potenciais estouros de inteiros com `checked_add` e `checked_sub`.',
         ],
         estimatedEffort: '8 Horas de Engenharia Especializada',
@@ -447,3 +501,4 @@ export async function executeDeterministicSecurityAudit(
     dependencyAnalysis: dependencyResult,
   };
 }
+

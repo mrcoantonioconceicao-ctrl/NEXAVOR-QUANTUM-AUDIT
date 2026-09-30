@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Sidebar, TabType } from './components/Sidebar.tsx';
+import { NavigationSidebar } from './components/NavigationSidebar.tsx';
+import { TabType } from './components/Sidebar.tsx';
 import { TopBar } from './components/TopBar.tsx';
 import { AuditInputHero } from './components/AuditInputHero.tsx';
 import { AuditDashboard } from './components/AuditDashboard.tsx';
@@ -163,7 +164,25 @@ const DEFAULT_SANDBOX_REPORT: SecurityAuditReport = {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
+  const [tabHistory, setTabHistory] = useState<TabType[]>(['dashboard']);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
+
+  const handleNavigateTab = (newTab: TabType) => {
+    if (newTab !== activeTab) {
+      setTabHistory((prev) => [...prev.slice(-15), newTab]);
+      setActiveTab(newTab);
+    }
+  };
+
+  const handleGoBackTab = () => {
+    if (tabHistory.length > 1) {
+      const updated = [...tabHistory];
+      updated.pop(); // Remove atual
+      const previous = updated[updated.length - 1];
+      setTabHistory(updated);
+      setActiveTab(previous);
+    }
+  };
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
   const [isAuditing, setIsAuditing] = useState<boolean>(false);
   const [bpmnSteps, setBpmnSteps] = useState<BpmnStep[]>(INITIAL_BPMN_STEPS);
@@ -409,9 +428,9 @@ pub mod solana_sandbox_counter {
   return (
     <div className="flex h-screen w-full bg-zinc-950 text-zinc-300 font-sans selection:bg-emerald-500 selection:text-zinc-950 overflow-hidden">
       {/* Sidebar Navigation */}
-      <Sidebar
+      <NavigationSidebar
         activeTab={activeTab}
-        onTabChange={(tab) => setActiveTab(tab)}
+        onTabChange={(tab) => handleNavigateTab(tab)}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
         isMobileOpen={isMobileSidebarOpen}
@@ -448,6 +467,9 @@ pub mod solana_sandbox_counter {
           hasToken={Boolean(currentGitHubToken)}
           isAuditing={isAuditing}
           hasReport={!!report}
+          canGoBack={tabHistory.length > 1}
+          onGoBack={handleGoBackTab}
+          onNavigateQuick={(tab) => handleNavigateTab(tab)}
         />
 
         {/* Scrollable Content Area */}
