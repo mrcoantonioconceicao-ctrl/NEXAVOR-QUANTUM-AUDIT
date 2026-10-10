@@ -1,68 +1,157 @@
 use anchor_lang::prelude::*;
 
-declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+// Standard Sandbox Program ID for the Anchor Counter DevSecOps environment
+declare_id!("CntSandbox111111111111111111111111111111111");
 
 #[program]
 pub mod solana_sandbox_counter {
     use super::*;
 
-    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
+    /// Initializes a deterministically derived PDA counter account for the signing authority.
+    /// Allocates exact 49 bytes for optimal rent-exempt calculation.
+    pub fn initialize(ctx: Context<Initialize>, initial_count: u64) -> Result<()> {
         let counter = &mut ctx.accounts.counter;
         counter.authority = ctx.accounts.authority.key();
-        counter.count = 0;
+        counter.count = initial_count;
         counter.bump = ctx.bumps.counter;
-        msg!("SolanaSandboxCounter inicializado com sucesso para autoridade: {:?}", counter.authority);
+
+        msg!("Initialized UserCounter PDA for authority: {}", counter.authority);
+        msg!("Initial count: {}, Canonical bump: {}", counter.count, counter.bump);
         Ok(())
     }
 
-    pub fn increment(ctx: Context<Increment>) -> Result<()> {
+    /// Increments the counter with native checked arithmetic protection and authority verification.
+    pub fn increment(ctx: Context<UpdateCounter>, amount: u64) -> Result<()> {
         let counter = &mut ctx.accounts.counter;
-        // Prevenção estrita de Integer Overflow via checked_add
+
+        // Native arithmetic overflow protection via checked_add
         counter.count = counter
             .count
-            .checked_add(1)
-            .ok_or(error!(ErrorCode::CounterOverflow))?;
-        msg!("Contador incrementado. Novo valor: {}", counter.count);
+            .checked_add(amount)
+            .ok_or(SecurityErrorCode::NumericalOverflow)?;
+
+        msg!("Counter incremented by {}. New count: {}", amount, counter.count);
+        Ok(())
+    }
+
+    /// Decrements the counter with native checked arithmetic protection to prevent underflow.
+    pub fn decrement(ctx: Context<UpdateCounter>, amount: u64) -> Result<()> {
+        let counter = &mut ctx.accounts.counter;
+
+        // Native arithmetic underflow protection via checked_sub
+        counter.count = counter
+            .count
+            .checked_sub(amount)
+            .ok_or(SecurityErrorCode::NumericalUnderflow)?;
+
+        msg!("Counter decremented by {}. New count: {}", amount, counter.count);
+        Ok(())
+    }
+
+    /// Resets the counter value to zero, strictly authorized by the counter owner.
+    pub fn reset(ctx: Context<UpdateCounter>) -> Result<()> {
+        let counter = &mut ctx.accounts.counter;
+        counter.count = 0;
+
+        msg!("Counter reset to zero by authority: {}", ctx.accounts.authority.key());
+        Ok(())
+    }
+
+    /// Safely closes the PDA account and reclaims rent-exempt lamports back to the authority.
+    pub fn close(ctx: Context<CloseCounter>) -> Result<()> {
+        msg!("UserCounter PDA closed. Rent reclaimed by: {}", ctx.accounts.authority.key());
         Ok(())
     }
 }
+
+// ==========================================
+// DECLARATIVE ANCHOR INSTRUCTION CONTEXTS
+// ==========================================
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
     #[account(
         init,
         payer = authority,
-        space = 8 + 32 + 8 + 1,
+        space = UserCounter::ACCOUNT_SPACE,
         seeds = [b"counter", authority.key().as_ref()],
         bump
     )]
     pub counter: Account<'info, UserCounter>,
+
     #[account(mut)]
     pub authority: Signer<'info>,
+
     pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
-pub struct Increment<'info> {
+pub struct UpdateCounter<'info> {
     #[account(
         mut,
         seeds = [b"counter", authority.key().as_ref()],
         bump = counter.bump,
-        has_one = authority
+        has_one = authority @ SecurityErrorCode::UnauthorizedAuthority
     )]
     pub counter: Account<'info, UserCounter>,
+
     pub authority: Signer<'info>,
 }
 
-#[account]
-pub struct UserCounter {
-    pub authority: Pubkey,
-    pub count: u64,
-    pub bump: u8,
+#[derive(Accounts)]
+pub struct CloseCounter<'info> {
+    #[account(
+        mut,
+        seeds = [b"counter", authority.key().as_ref()],
+        bump = counter.bump,
+        has_one = authority @ SecurityErrorCode::UnauthorizedAuthority,
+        close = authority
+    )]
+    pub counter: Account<'info, UserCounter>,
+
+    #[account(mut)]
+    pub authority: Signer<'info>,
 }
 
+// ==========================================
+// STATE DATA STRUCTURE & MEMORY ALLOCATION
+// ==========================================
+
+#[account]
+pub struct UserCounter {
+    pub authority: Pubkey, // 32 bytes
+    pub count: u64,        // 8 bytes
+    pub bump: u8,          // 1 byte
+}
+
+impl UserCounter {
+    pub const DISCRIMINATOR_SPACE: usize = 8;
+    pub const AUTHORITY_SPACE: usize = 32;
+    pub const COUNT_SPACE: usize = 8;
+    pub const BUMP_SPACE: usize = 1;
+
+    /// 49 bytes exact rent-exempt allocation
+    pub const ACCOUNT_SPACE: usize = Self::DISCRIMINATOR_SPACE
+        + Self::AUTHORITY_SPACE
+        + Self::COUNT_SPACE
+        + Self::BUMP_SPACE;
+}
+
+// ==========================================
+// SECURITY ERROR CODES
+// ==========================================
+
 #[error_code]
-pub enum ErrorCode {
-    #[msg("Operação aritmética de incremento excedeu o limite máximo (Overflow).")]
-    CounterOverflow,
+pub enum SecurityErrorCode {
+    #[msg("Arithmetic overflow occurred during counter operation")]
+    NumericalOverflow,
+
+    #[msg("Arithmetic underflow occurred: counter cannot be negative")]
+    NumericalUnderflow,
+
+    #[msg("Access Denied: Signer does not match the registered counter authority")]
+    UnauthorizedAuthority,
+
+    #[msg("Invalid canonical bump seed provided")]
+    InvalidBumpSeed,
 }
